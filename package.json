@@ -1,9 +1,7 @@
 {
-  "name": "react",
+  "name": "rubiks-cube",
   "version": "1.0.0",
-  "description": "",
-  "keywords": [],
-  "main": "src/index.tsx",
+  "private": true,
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -14,12 +12,7 @@
     "leva": "0.10.1",
     "gsap": "3.13.0"
   },
-  "devDependencies": {
-    "@types/react": "19.0.0",
-    "@types/react-dom": "19.0.0",
-    "loader-utils": "3.2.1",
-    "typescript": "5.7.2"
-  },
+  "devDependencies": {},
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
