@@ -89,7 +89,7 @@ function RubiksCube({ onHoverChange }) {
     samples: { value: 10, min: 1, max: 32, step: 1 },
     resolution: { value: 2048, min: 256, max: 2048, step: 256 },
     backside: false,
-    bg: "#ffffff",
+    bg: "transparent",
   });
 
   const centerConfig = useControls("Center Cube", {
@@ -577,7 +577,7 @@ function RubiksCube({ onHoverChange }) {
             smoothness * 2
           );
 
-          const posAttr = tempRoundedBox.attributes.position;
+          const posAttr = tempRoundedBox.getAttribute('position');
           const vertex = new THREE.Vector3();
 
           for (let i = 0; i < posAttr.count; i++) {
