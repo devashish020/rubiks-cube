@@ -3,8 +3,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   MeshTransmissionMaterial,
   Environment,
-  ContactShadows,
-  Text,
   GradientTexture,
   RoundedBox,
 } from "@react-three/drei";
@@ -260,220 +258,143 @@ function RubiksCube({ onHoverChange }) {
       state.explosionDirections[i] = direction.add(randomOffset).normalize();
       state.explosionDirections[i].multiplyScalar(8 + distance * 2);
 
-      state.explosionRotationAxes[i] = new THREE.Vector3(
+      const randomAxis = new THREE.Vector3(
         Math.random() - 0.5,
         Math.random() - 0.5,
         Math.random() - 0.5
       ).normalize();
+      state.explosionRotationAxes[i] = randomAxis;
     });
   }
 
   useFrame((state, delta) => {
     const animState = animationState.current;
-    const deltaTime = Math.min(delta * 1000, 100);
 
-    raycaster.current.setFromCamera(mouse.current, camera);
-    const validCubes = cubesRef.current.filter((c) => c !== null);
-    const intersects = raycaster.current.intersectObjects(validCubes, true);
+    if (isReassembling && animState.reassemblyProgress < 1) {
+      animState.reassemblyProgress += delta * 1.5;
 
-    if (intersects.length > 0) {
-      let intersectedCubeGroup = intersects[0].object;
-      while (
-        intersectedCubeGroup &&
-        !cubesRef.current.includes(intersectedCubeGroup)
-      ) {
-        intersectedCubeGroup = intersectedCubeGroup.parent;
+      if (animState.reassemblyProgress >= 1) {
+        animState.reassemblyProgress = 1;
+        setIsReassembling(false);
+        setPauseRotations(false);
+        setExplosionProgress(0);
       }
 
-      const hoveredIndex = cubesRef.current.indexOf(intersectedCubeGroup);
-      if (hoveredIndex !== -1 && hoveredIndex !== hoveredCube) {
-        setHoveredCube(hoveredIndex);
-        onHoverChange(hoveredIndex);
-      }
-    } else {
-      if (hoveredCube !== null) {
-        setHoveredCube(null);
-        onHoverChange(null);
-      }
-    }
+      const progress = easeInOutCubic(animState.reassemblyProgress);
 
-    if (sphereRef.current) {
-      const targetScale = hoveredCube !== null ? 0.5 : 0;
-      sphereScale.current += (targetScale - sphereScale.current) * 0.35;
+      cubesRef.current.forEach((cube, i) => {
+        if (!cube || !animState.snapshotPositions[i]) return;
 
-      sphereRef.current.scale.setScalar(sphereScale.current);
+        const targetPos = basePositions.current[i];
+        const startPos = animState.snapshotPositions[i];
+        const explosionDir = animState.explosionDirections[i];
 
-      if (hoveredCube !== null && cubesRef.current[hoveredCube]) {
-        const hoveredCubeObj = cubesRef.current[hoveredCube];
-
-        if (sphereRef.current.parent !== hoveredCubeObj) {
-          hoveredCubeObj.add(sphereRef.current);
-          sphereRef.current.position.set(0, 0, 0);
-          sphereScale.current = 0.2;
-          hoveredCubeObj.getWorldPosition(hoverPoint.current);
-        }
-      } else {
-        if (sphereRef.current.parent !== groupRef.current) {
-          groupRef.current.add(sphereRef.current);
-        }
-        sphereRef.current.position.set(0, -1000, 0);
-      }
-    }
-
-    cubesRef.current.forEach((cubeGroup, i) => {
-      if (!cubeGroup || !repulsionOffsets.current[i]) return;
-
-      cubeGroup.updateMatrixWorld(true);
-
-      const cubeWorldPos = new THREE.Vector3();
-      cubeGroup.getWorldPosition(cubeWorldPos);
-
-      const distance = cubeWorldPos.distanceTo(mouseWorldPos.current);
-      const repulsionRadius = pauseRotations ? 6 : 4;
-
-      if (distance < repulsionRadius) {
-        const repulsionDir = new THREE.Vector3()
-          .subVectors(cubeWorldPos, mouseWorldPos.current)
-          .normalize();
-
-        const strength =
-          (1 - distance / repulsionRadius) * (pauseRotations ? 0.6 : 0.4);
-        repulsionOffsets.current[i].copy(repulsionDir.multiplyScalar(strength));
-      } else {
-        repulsionOffsets.current[i].lerp(new THREE.Vector3(0, 0, 0), 0.15);
-      }
-
-      if (!pauseRotations && basePositions.current[i]) {
-        cubeGroup.position
-          .copy(basePositions.current[i])
-          .add(repulsionOffsets.current[i]);
-      }
-    });
-
-    if (pauseRotations && animState.snapshotPositions.length > 0) {
-      if (isReassembling) {
-        const increment = deltaTime / 600;
-        animState.reassemblyProgress += increment;
-
-        if (animState.reassemblyProgress >= 1) {
-          animState.reassemblyProgress = 1;
+        if (explosionDir) {
+          const explosionPos = startPos.clone().add(explosionDir);
+          const currentPos = new THREE.Vector3().lerpVectors(
+            explosionPos,
+            targetPos,
+            progress
+          );
+          cube.position.copy(currentPos);
         }
 
-        const eased = easeInOutCubic(animState.reassemblyProgress);
-
-        cubesRef.current.forEach((cube, i) => {
-          if (
-            !cube ||
-            !animState.snapshotPositions[i] ||
-            !basePositions.current[i]
-          )
-            return;
-
-          cube.position.lerpVectors(
-            animState.snapshotPositions[i],
-            basePositions.current[i],
-            eased
-          );
-
-          const baseQuat = new THREE.Quaternion().setFromEuler(
-            baseRotations.current[i]
-          );
-          cube.quaternion.slerpQuaternions(
-            animState.snapshotRotations[i],
-            baseQuat,
-            eased
-          );
-        });
-
-        if (animState.reassemblyProgress >= 1) {
-          cubesRef.current.forEach((cube, i) => {
-            if (!cube) return;
-            cube.position.copy(basePositions.current[i]);
-            cube.quaternion.setFromEuler(baseRotations.current[i]);
-          });
-
-          setIsReassembling(false);
-          setPauseRotations(false);
-          animState.reassemblyProgress = 0;
-          setExplosionProgress(0);
-          animState.snapshotPositions = [];
-          animState.snapshotRotations = [];
-          animState.explosionRotationAxes = [];
-        }
-      } else {
-        cubesRef.current.forEach((cube, i) => {
-          if (!cube || !animState.snapshotPositions[i]) return;
-
-          const targetPos = animState.snapshotPositions[i]
-            .clone()
-            .add(
-              animState.explosionDirections[i]
-                .clone()
-                .multiplyScalar(explosionProgress)
-            );
-
-          if (repulsionOffsets.current[i]) {
-            targetPos.add(repulsionOffsets.current[i]);
-          }
-
-          cube.position.copy(targetPos);
-
-          const baseQuat = animState.snapshotRotations[i].clone();
-          const spinAmount = explosionProgress * Math.PI * 2;
-          const spinQuat = new THREE.Quaternion().setFromAxisAngle(
-            animState.explosionRotationAxes[i],
-            spinAmount * (0.5 + (i % 10) * 0.05)
-          );
-
-          cube.quaternion.copy(baseQuat).multiply(spinQuat);
-        });
-      }
-    } else if (!pauseRotations) {
-      if (isAnimating && animState.rotationGroup) {
-        animState.animationProgress += deltaTime / 500;
-        if (animState.animationProgress >= 1) animState.animationProgress = 1;
-
-        const eased = easeInOutCubic(animState.animationProgress);
-        const newRotation = animState.targetRotation * eased;
-        const rotationDelta = newRotation - animState.currentRotation;
-
-        animState.rotationGroup.rotateOnWorldAxis(
-          animState.rotationAxis,
-          rotationDelta
+        const startQuat = animState.snapshotRotations[i];
+        const targetQuat = new THREE.Quaternion().setFromEuler(
+          baseRotations.current[i]
         );
-        animState.currentRotation = newRotation;
+        if (startQuat && targetQuat) {
+          const currentQuat = new THREE.Quaternion().slerpQuaternions(
+            startQuat,
+            targetQuat,
+            progress
+          );
+          cube.quaternion.copy(currentQuat);
+        }
+      });
+    }
 
-        if (animState.animationProgress >= 1) {
-          animState.rotatingCubes.forEach((cube) => {
-            groupRef.current.attach(cube);
+    if (
+      pauseRotations &&
+      !isReassembling &&
+      animState.snapshotPositions.length > 0
+    ) {
+      cubesRef.current.forEach((cube, i) => {
+        if (!cube || !animState.snapshotPositions[i]) return;
 
-            const cubeIndex = cubesRef.current.indexOf(cube);
-            if (
-              cubeIndex !== -1 &&
-              basePositions.current[cubeIndex] &&
-              repulsionOffsets.current[cubeIndex]
-            ) {
-              cube.position
-                .copy(basePositions.current[cubeIndex])
-                .add(repulsionOffsets.current[cubeIndex]);
-            }
-          });
+        const basePos = animState.snapshotPositions[i];
+        const explosionDir = animState.explosionDirections[i];
 
-          groupRef.current.remove(animState.rotationGroup);
-          animState.rotationGroup = null;
-          animState.rotatingCubes = [];
-          setIsAnimating(false);
+        if (explosionDir) {
+          const offset = explosionDir.clone().multiplyScalar(explosionProgress);
+          cube.position.copy(basePos.clone().add(offset));
+        }
 
-          if (animState.animationQueue.length > 0 && !pauseRotations) {
-            const next = animState.animationQueue.shift();
-            startRotation(next.face, next.direction);
+        const rotationAxis = animState.explosionRotationAxes[i];
+        const baseQuat = animState.snapshotRotations[i];
+        if (rotationAxis && baseQuat) {
+          const angle = explosionProgress * Math.PI * 4;
+          const rotQuat = new THREE.Quaternion().setFromAxisAngle(
+            rotationAxis,
+            angle
+          );
+          const finalQuat = baseQuat.clone().multiply(rotQuat);
+          cube.quaternion.copy(finalQuat);
+        }
+      });
+
+      if (sphereRef.current) {
+        sphereScale.current = Math.min(explosionProgress * 2, 1);
+        sphereRef.current.scale.setScalar(sphereScale.current * 0.5);
+      }
+    }
+
+    if (isAnimating && animState.rotationGroup && animState.rotationAxis) {
+      const rotationSpeed = 3;
+      const rotationDelta = rotationSpeed * delta;
+
+      animState.animationProgress +=
+        rotationDelta / Math.abs(animState.targetRotation);
+
+      if (animState.animationProgress >= 1) {
+        animState.rotationGroup.rotateOnAxis(
+          animState.rotationAxis,
+          animState.targetRotation - animState.currentRotation
+        );
+        animState.currentRotation = animState.targetRotation;
+
+        animState.rotatingCubes.forEach((cube) => {
+          groupRef.current.attach(cube);
+        });
+
+        groupRef.current.remove(animState.rotationGroup);
+        animState.rotationGroup = null;
+        animState.rotatingCubes = [];
+        setIsAnimating(false);
+
+        if (animState.animationQueue.length > 0) {
+          const nextMove = animState.animationQueue.shift();
+          if (nextMove) {
+            setTimeout(() => {
+              startRotation(nextMove.face, nextMove.direction);
+            }, 50);
           }
         }
-      }
+      } else {
+        const easedProgress = easeInOutCubic(animState.animationProgress);
+        const targetRot = animState.targetRotation * easedProgress;
+        const rotDiff = targetRot - animState.currentRotation;
 
-      if (!isAnimating && animState.animationQueue.length === 0) {
-        const currentTime = Date.now();
-        if (currentTime - animState.lastMoveTime > AUTO_ANIMATION_DELAY) {
+        animState.rotationGroup.rotateOnAxis(animState.rotationAxis, rotDiff);
+        animState.currentRotation = targetRot;
+      }
+    }
+
+    if (!isAnimating && !pauseRotations) {
+      const currentTime = state.clock.elapsedTime * 1000;
+
+      if (currentTime - animState.lastMoveTime > AUTO_ANIMATION_DELAY) {
+        if (animState.animationQueue.length === 0) {
           const randomFace = faces[Math.floor(Math.random() * faces.length)];
           const randomDirection = Math.random() > 0.5 ? 1 : -1;
           startRotation(randomFace, randomDirection);
@@ -667,7 +588,7 @@ function RubiksCube({ onHoverChange }) {
                 {isGradientCube ? (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color(glassConfig.bg)}
+                    background={new THREE.Color("transparent")}
                   >
                     <GradientTexture
                       stops={[0, 1]}
@@ -681,7 +602,7 @@ function RubiksCube({ onHoverChange }) {
                 ) : (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color(glassConfig.bg)}
+                    background={new THREE.Color("transparent")}
                   />
                 )}
               </RoundedBox>
@@ -726,13 +647,7 @@ export default function App() {
         <color attach="background" args={["transparent"]} />
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} />
-        <ContactShadows
-          position={[0, -2, 0]}
-          opacity={0.4}
-          scale={10}
-          blur={2}
-          far={4}
-        />
+        {/* ContactShadows REMOVED - it was causing white background */}
         <Environment
           files="https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr"
           background={false}
