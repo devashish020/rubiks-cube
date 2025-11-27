@@ -577,7 +577,7 @@ function RubiksCube({ onHoverChange }) {
             smoothness * 2
           );
 
-          const posAttr = tempRoundedBox.getAttribute('position');
+          const posAttr = tempRoundedBox.getAttribute("position");
           const vertex = new THREE.Vector3();
 
           for (let i = 0; i < posAttr.count; i++) {
@@ -716,8 +716,13 @@ export default function App() {
   const [hoveredCube, setHoveredCube] = useState(null);
 
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <Canvas shadows camera={{ position: [8, 8, 8], fov: 50 }}>
+    <div style={{ width: "100vw", height: "100vh", background: "transparent" }}>
+      <Canvas 
+        shadows 
+        camera={{ position: [8, 8, 8], fov: 50 }}
+        gl={{ alpha: true, premultipliedAlpha: false }}
+        style={{ background: "transparent" }}
+      >
         <color attach="background" args={["transparent"]} />
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} />
