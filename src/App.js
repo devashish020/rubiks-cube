@@ -664,7 +664,7 @@ function RubiksCube({ onHoverChange }) {
                 {isGradientCube ? (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color("#ffffff")}
+                    background={new THREE.Color("#f0f0f0")}
                   >
                     <GradientTexture
                       stops={[0, 1]}
