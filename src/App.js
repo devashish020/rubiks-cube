@@ -3,6 +3,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   MeshTransmissionMaterial,
   Environment,
+  ContactShadows,
+  Text,
   GradientTexture,
   RoundedBox,
 } from "@react-three/drei";
@@ -13,6 +15,7 @@ import gsap from "gsap";
 function RubiksCube({ onHoverChange }) {
   const groupRef = useRef();
   const cubesRef = useRef([]);
+
   const sphereRef = useRef();
   const [isAnimating, setIsAnimating] = useState(false);
   const [pauseRotations, setPauseRotations] = useState(false);
@@ -26,14 +29,6 @@ function RubiksCube({ onHoverChange }) {
   const { camera, gl } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
-
-  // Set renderer to fully transparent
-  useEffect(() => {
-    if (gl) {
-      gl.setClearColor(0x000000, 0);
-      gl.setClearAlpha(0);
-    }
-  }, [gl]);
 
   useEffect(() => {
     if (!gl || !gl.domElement) return;
@@ -131,6 +126,7 @@ function RubiksCube({ onHoverChange }) {
   }, []);
 
   const gradientCubeIndices = useRef([3, 9, 17, 23]);
+
   const faces = ["front", "back", "right", "left", "top", "bottom"];
   const AUTO_ANIMATION_DELAY = 1000;
 
@@ -263,143 +259,220 @@ function RubiksCube({ onHoverChange }) {
       state.explosionDirections[i] = direction.add(randomOffset).normalize();
       state.explosionDirections[i].multiplyScalar(8 + distance * 2);
 
-      const randomAxis = new THREE.Vector3(
+      state.explosionRotationAxes[i] = new THREE.Vector3(
         Math.random() - 0.5,
         Math.random() - 0.5,
         Math.random() - 0.5
       ).normalize();
-      state.explosionRotationAxes[i] = randomAxis;
     });
   }
 
   useFrame((state, delta) => {
     const animState = animationState.current;
+    const deltaTime = Math.min(delta * 1000, 100);
 
-    if (isReassembling && animState.reassemblyProgress < 1) {
-      animState.reassemblyProgress += delta * 1.5;
+    raycaster.current.setFromCamera(mouse.current, camera);
+    const validCubes = cubesRef.current.filter((c) => c !== null);
+    const intersects = raycaster.current.intersectObjects(validCubes, true);
 
-      if (animState.reassemblyProgress >= 1) {
-        animState.reassemblyProgress = 1;
-        setIsReassembling(false);
-        setPauseRotations(false);
-        setExplosionProgress(0);
+    if (intersects.length > 0) {
+      let intersectedCubeGroup = intersects[0].object;
+      while (
+        intersectedCubeGroup &&
+        !cubesRef.current.includes(intersectedCubeGroup)
+      ) {
+        intersectedCubeGroup = intersectedCubeGroup.parent;
       }
 
-      const progress = easeInOutCubic(animState.reassemblyProgress);
-
-      cubesRef.current.forEach((cube, i) => {
-        if (!cube || !animState.snapshotPositions[i]) return;
-
-        const targetPos = basePositions.current[i];
-        const startPos = animState.snapshotPositions[i];
-        const explosionDir = animState.explosionDirections[i];
-
-        if (explosionDir) {
-          const explosionPos = startPos.clone().add(explosionDir);
-          const currentPos = new THREE.Vector3().lerpVectors(
-            explosionPos,
-            targetPos,
-            progress
-          );
-          cube.position.copy(currentPos);
-        }
-
-        const startQuat = animState.snapshotRotations[i];
-        const targetQuat = new THREE.Quaternion().setFromEuler(
-          baseRotations.current[i]
-        );
-        if (startQuat && targetQuat) {
-          const currentQuat = new THREE.Quaternion().slerpQuaternions(
-            startQuat,
-            targetQuat,
-            progress
-          );
-          cube.quaternion.copy(currentQuat);
-        }
-      });
-    }
-
-    if (
-      pauseRotations &&
-      !isReassembling &&
-      animState.snapshotPositions.length > 0
-    ) {
-      cubesRef.current.forEach((cube, i) => {
-        if (!cube || !animState.snapshotPositions[i]) return;
-
-        const basePos = animState.snapshotPositions[i];
-        const explosionDir = animState.explosionDirections[i];
-
-        if (explosionDir) {
-          const offset = explosionDir.clone().multiplyScalar(explosionProgress);
-          cube.position.copy(basePos.clone().add(offset));
-        }
-
-        const rotationAxis = animState.explosionRotationAxes[i];
-        const baseQuat = animState.snapshotRotations[i];
-        if (rotationAxis && baseQuat) {
-          const angle = explosionProgress * Math.PI * 4;
-          const rotQuat = new THREE.Quaternion().setFromAxisAngle(
-            rotationAxis,
-            angle
-          );
-          const finalQuat = baseQuat.clone().multiply(rotQuat);
-          cube.quaternion.copy(finalQuat);
-        }
-      });
-
-      if (sphereRef.current) {
-        sphereScale.current = Math.min(explosionProgress * 2, 1);
-        sphereRef.current.scale.setScalar(sphereScale.current * 0.5);
+      const hoveredIndex = cubesRef.current.indexOf(intersectedCubeGroup);
+      if (hoveredIndex !== -1 && hoveredIndex !== hoveredCube) {
+        setHoveredCube(hoveredIndex);
+        onHoverChange(hoveredIndex);
+      }
+    } else {
+      if (hoveredCube !== null) {
+        setHoveredCube(null);
+        onHoverChange(null);
       }
     }
 
-    if (isAnimating && animState.rotationGroup && animState.rotationAxis) {
-      const rotationSpeed = 3;
-      const rotationDelta = rotationSpeed * delta;
+    if (sphereRef.current) {
+      const targetScale = hoveredCube !== null ? 0.5 : 0;
+      sphereScale.current += (targetScale - sphereScale.current) * 0.35;
 
-      animState.animationProgress +=
-        rotationDelta / Math.abs(animState.targetRotation);
+      sphereRef.current.scale.setScalar(sphereScale.current);
 
-      if (animState.animationProgress >= 1) {
-        animState.rotationGroup.rotateOnAxis(
-          animState.rotationAxis,
-          animState.targetRotation - animState.currentRotation
-        );
-        animState.currentRotation = animState.targetRotation;
+      if (hoveredCube !== null && cubesRef.current[hoveredCube]) {
+        const hoveredCubeObj = cubesRef.current[hoveredCube];
 
-        animState.rotatingCubes.forEach((cube) => {
-          groupRef.current.attach(cube);
-        });
-
-        groupRef.current.remove(animState.rotationGroup);
-        animState.rotationGroup = null;
-        animState.rotatingCubes = [];
-        setIsAnimating(false);
-
-        if (animState.animationQueue.length > 0) {
-          const nextMove = animState.animationQueue.shift();
-          if (nextMove) {
-            setTimeout(() => {
-              startRotation(nextMove.face, nextMove.direction);
-            }, 50);
-          }
+        if (sphereRef.current.parent !== hoveredCubeObj) {
+          hoveredCubeObj.add(sphereRef.current);
+          sphereRef.current.position.set(0, 0, 0);
+          sphereScale.current = 0.2;
+          hoveredCubeObj.getWorldPosition(hoverPoint.current);
         }
       } else {
-        const easedProgress = easeInOutCubic(animState.animationProgress);
-        const targetRot = animState.targetRotation * easedProgress;
-        const rotDiff = targetRot - animState.currentRotation;
-
-        animState.rotationGroup.rotateOnAxis(animState.rotationAxis, rotDiff);
-        animState.currentRotation = targetRot;
+        if (sphereRef.current.parent !== groupRef.current) {
+          groupRef.current.add(sphereRef.current);
+        }
+        sphereRef.current.position.set(0, -1000, 0);
       }
     }
 
-    if (!isAnimating && !pauseRotations) {
-      const currentTime = state.clock.elapsedTime * 1000;
+    cubesRef.current.forEach((cubeGroup, i) => {
+      if (!cubeGroup || !repulsionOffsets.current[i]) return;
 
-      if (currentTime - animState.lastMoveTime > AUTO_ANIMATION_DELAY) {
-        if (animState.animationQueue.length === 0) {
+      cubeGroup.updateMatrixWorld(true);
+
+      const cubeWorldPos = new THREE.Vector3();
+      cubeGroup.getWorldPosition(cubeWorldPos);
+
+      const distance = cubeWorldPos.distanceTo(mouseWorldPos.current);
+      const repulsionRadius = pauseRotations ? 6 : 4;
+
+      if (distance < repulsionRadius) {
+        const repulsionDir = new THREE.Vector3()
+          .subVectors(cubeWorldPos, mouseWorldPos.current)
+          .normalize();
+
+        const strength =
+          (1 - distance / repulsionRadius) * (pauseRotations ? 0.6 : 0.4);
+        repulsionOffsets.current[i].copy(repulsionDir.multiplyScalar(strength));
+      } else {
+        repulsionOffsets.current[i].lerp(new THREE.Vector3(0, 0, 0), 0.15);
+      }
+
+      if (!pauseRotations && basePositions.current[i]) {
+        cubeGroup.position
+          .copy(basePositions.current[i])
+          .add(repulsionOffsets.current[i]);
+      }
+    });
+
+    if (pauseRotations && animState.snapshotPositions.length > 0) {
+      if (isReassembling) {
+        const increment = deltaTime / 600;
+        animState.reassemblyProgress += increment;
+
+        if (animState.reassemblyProgress >= 1) {
+          animState.reassemblyProgress = 1;
+        }
+
+        const eased = easeInOutCubic(animState.reassemblyProgress);
+
+        cubesRef.current.forEach((cube, i) => {
+          if (
+            !cube ||
+            !animState.snapshotPositions[i] ||
+            !basePositions.current[i]
+          )
+            return;
+
+          cube.position.lerpVectors(
+            animState.snapshotPositions[i],
+            basePositions.current[i],
+            eased
+          );
+
+          const baseQuat = new THREE.Quaternion().setFromEuler(
+            baseRotations.current[i]
+          );
+          cube.quaternion.slerpQuaternions(
+            animState.snapshotRotations[i],
+            baseQuat,
+            eased
+          );
+        });
+
+        if (animState.reassemblyProgress >= 1) {
+          cubesRef.current.forEach((cube, i) => {
+            if (!cube) return;
+            cube.position.copy(basePositions.current[i]);
+            cube.quaternion.setFromEuler(baseRotations.current[i]);
+          });
+
+          setIsReassembling(false);
+          setPauseRotations(false);
+          animState.reassemblyProgress = 0;
+          setExplosionProgress(0);
+          animState.snapshotPositions = [];
+          animState.snapshotRotations = [];
+          animState.explosionRotationAxes = [];
+        }
+      } else {
+        cubesRef.current.forEach((cube, i) => {
+          if (!cube || !animState.snapshotPositions[i]) return;
+
+          const targetPos = animState.snapshotPositions[i]
+            .clone()
+            .add(
+              animState.explosionDirections[i]
+                .clone()
+                .multiplyScalar(explosionProgress)
+            );
+
+          if (repulsionOffsets.current[i]) {
+            targetPos.add(repulsionOffsets.current[i]);
+          }
+
+          cube.position.copy(targetPos);
+
+          const baseQuat = animState.snapshotRotations[i].clone();
+          const spinAmount = explosionProgress * Math.PI * 2;
+          const spinQuat = new THREE.Quaternion().setFromAxisAngle(
+            animState.explosionRotationAxes[i],
+            spinAmount * (0.5 + (i % 10) * 0.05)
+          );
+
+          cube.quaternion.copy(baseQuat).multiply(spinQuat);
+        });
+      }
+    } else if (!pauseRotations) {
+      if (isAnimating && animState.rotationGroup) {
+        animState.animationProgress += deltaTime / 500;
+        if (animState.animationProgress >= 1) animState.animationProgress = 1;
+
+        const eased = easeInOutCubic(animState.animationProgress);
+        const newRotation = animState.targetRotation * eased;
+        const rotationDelta = newRotation - animState.currentRotation;
+
+        animState.rotationGroup.rotateOnWorldAxis(
+          animState.rotationAxis,
+          rotationDelta
+        );
+        animState.currentRotation = newRotation;
+
+        if (animState.animationProgress >= 1) {
+          animState.rotatingCubes.forEach((cube) => {
+            groupRef.current.attach(cube);
+
+            const cubeIndex = cubesRef.current.indexOf(cube);
+            if (
+              cubeIndex !== -1 &&
+              basePositions.current[cubeIndex] &&
+              repulsionOffsets.current[cubeIndex]
+            ) {
+              cube.position
+                .copy(basePositions.current[cubeIndex])
+                .add(repulsionOffsets.current[cubeIndex]);
+            }
+          });
+
+          groupRef.current.remove(animState.rotationGroup);
+          animState.rotationGroup = null;
+          animState.rotatingCubes = [];
+          setIsAnimating(false);
+
+          if (animState.animationQueue.length > 0 && !pauseRotations) {
+            const next = animState.animationQueue.shift();
+            startRotation(next.face, next.direction);
+          }
+        }
+      }
+
+      if (!isAnimating && animState.animationQueue.length === 0) {
+        const currentTime = Date.now();
+        if (currentTime - animState.lastMoveTime > AUTO_ANIMATION_DELAY) {
           const randomFace = faces[Math.floor(Math.random() * faces.length)];
           const randomDirection = Math.random() > 0.5 ? 1 : -1;
           startRotation(randomFace, randomDirection);
@@ -640,37 +713,22 @@ export default function App() {
   const [hoveredCube, setHoveredCube] = useState(null);
 
   return (
-    <div 
-      style={{ 
-        width: "100vw", 
-        height: "100vh", 
-        margin: 0,
-        padding: 0,
-        background: "transparent",
-        position: "fixed",
-        top: 0,
-        left: 0
-      }}
-    >
+    <div style={{ width: "100vw", height: "100vh", background: "transparent" }}>
       <Canvas 
         shadows 
         camera={{ position: [8, 8, 8], fov: 50 }}
-        gl={{ 
-          alpha: true, 
-          premultipliedAlpha: false,
-          antialias: true
-        }}
-        style={{ 
-          background: "transparent",
-          display: "block",
-          width: "100%",
-          height: "100%"
-        }}
+        gl={{ alpha: true, premultipliedAlpha: false }}
+        style={{ background: "transparent" }}
       >
-        {/* No background color - fully transparent */}
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} />
-        
+        <ContactShadows
+          position={[0, -2, 0]}
+          opacity={0.4}
+          scale={10}
+          blur={2}
+          far={4}
+        />
         <Environment
           files="https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr"
           background={false}
