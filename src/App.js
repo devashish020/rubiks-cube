@@ -481,12 +481,25 @@ function RubiksCube({ onHoverChange }) {
   });
 
   useEffect(() => {
-    function handleMessage(event) {
-      // Listen for scroll messages from parent (Framer)
-      if (event.data && typeof event.data.scrollProgress === 'number') {
-        const explosionProgress = event.data.scrollProgress;
-        updateDisintegration(explosionProgress);
-      }
+    const progress = { value: 0 };
+
+    function handleWheel(e) {
+      // DON'T prevent default - allows page to scroll normally
+      // Just track the wheel delta for cube explosion
+      
+      const delta = e.deltaY * 0.001;
+      const targetProgress = Math.max(0, Math.min(1, progress.value + delta));
+
+      gsap.killTweensOf(progress);
+
+      gsap.to(progress, {
+        value: targetProgress,
+        duration: 0.3,
+        ease: "power2.out",
+        onUpdate: () => {
+          updateDisintegration(progress.value);
+        },
+      });
     }
 
     function updateDisintegration(progressValue) {
@@ -525,11 +538,17 @@ function RubiksCube({ onHoverChange }) {
       }
     }
 
-    // Listen for messages from parent window (Framer)
-    window.addEventListener("message", handleMessage);
+    const canvas = document.querySelector("canvas");
+    if (canvas) {
+      // passive: true allows scrolling to continue
+      canvas.addEventListener("wheel", handleWheel, { passive: true });
+    }
 
     return () => {
-      window.removeEventListener("message", handleMessage);
+      if (canvas) {
+        canvas.removeEventListener("wheel", handleWheel);
+      }
+      gsap.killTweensOf(progress);
     };
   }, [pauseRotations, isReassembling]);
 
