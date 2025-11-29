@@ -484,28 +484,13 @@ function RubiksCube({ onHoverChange }) {
     const progress = { value: 0 };
 
     function handleScroll() {
-      // Get the iframe's position relative to viewport in the parent page
-      // This will work when embedded in Framer
-      
-      // For standalone page, use window scroll
+      // Get scroll position
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
       
-      // Calculate scroll progress (0 to 1)
-      const maxScroll = documentHeight - windowHeight;
-      const scrollProgress = maxScroll > 0 ? scrollY / maxScroll : 0;
-      
-      // Map scroll progress to explosion (you can adjust these values)
-      // When scroll is in the middle 50% of page, trigger explosion
-      let explosionProgress = 0;
-      
-      if (scrollProgress > 0.25 && scrollProgress < 0.75) {
-        // Map 0.25-0.75 scroll range to 0-1 explosion
-        explosionProgress = (scrollProgress - 0.25) / 0.5;
-      } else if (scrollProgress >= 0.75) {
-        explosionProgress = 1;
-      }
+      // Use pixels scrolled instead of percentage for more control
+      // Explode completely within first viewport height (one section)
+      const explosionProgress = Math.min(scrollY / 300, 1);
       
       updateDisintegration(explosionProgress);
     }
