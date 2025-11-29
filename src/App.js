@@ -482,24 +482,36 @@ function RubiksCube({ onHoverChange }) {
 
   useEffect(() => {
     const progress = { value: 0 };
+    let animationFrameId = null;
+    let targetProgress = 0;
 
     function handleWheel(e) {
-      // DON'T prevent default - allows page to scroll normally
-      // Just track the wheel delta for cube explosion
-      
+      // Calculate target progress directly
       const delta = e.deltaY * 0.001;
-      const targetProgress = Math.max(0, Math.min(1, progress.value + delta));
+      targetProgress = Math.max(0, Math.min(1, progress.value + delta));
+      
+      // Use requestAnimationFrame for smooth updates
+      if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(updateProgress);
+      }
+    }
 
-      gsap.killTweensOf(progress);
-
-      gsap.to(progress, {
-        value: targetProgress,
-        duration: 0.3,
-        ease: "power2.out",
-        onUpdate: () => {
-          updateDisintegration(progress.value);
-        },
-      });
+    function updateProgress() {
+      // Smooth interpolation to target
+      const speed = 0.1; // Adjust for smoothness (0.1 = smooth, 0.5 = fast)
+      progress.value += (targetProgress - progress.value) * speed;
+      
+      // Update explosion
+      updateDisintegration(progress.value);
+      
+      // Continue animating if not close enough to target
+      if (Math.abs(targetProgress - progress.value) > 0.001) {
+        animationFrameId = requestAnimationFrame(updateProgress);
+      } else {
+        progress.value = targetProgress;
+        updateDisintegration(progress.value);
+        animationFrameId = null;
+      }
     }
 
     function updateDisintegration(progressValue) {
@@ -540,7 +552,7 @@ function RubiksCube({ onHoverChange }) {
 
     const canvas = document.querySelector("canvas");
     if (canvas) {
-      // passive: true allows scrolling to continue
+      // passive: true allows scrolling to continue smoothly
       canvas.addEventListener("wheel", handleWheel, { passive: true });
     }
 
@@ -548,7 +560,9 @@ function RubiksCube({ onHoverChange }) {
       if (canvas) {
         canvas.removeEventListener("wheel", handleWheel);
       }
-      gsap.killTweensOf(progress);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
   }, [pauseRotations, isReassembling]);
 
