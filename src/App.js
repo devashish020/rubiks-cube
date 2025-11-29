@@ -490,7 +490,7 @@ function RubiksCube({ onHoverChange }) {
       
       // Use pixels scrolled instead of percentage for more control
       // Explode completely within first viewport height (one section)
-      const explosionProgress = Math.min(scrollY / 300, 1);
+      const explosionProgress = Math.min(scrollY / 10, 1);
       
       updateDisintegration(explosionProgress);
     }
