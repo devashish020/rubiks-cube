@@ -483,22 +483,31 @@ function RubiksCube({ onHoverChange }) {
   useEffect(() => {
     const progress = { value: 0 };
 
-    function handleWheel(e) {
-      e.preventDefault();
-
-      const delta = e.deltaY * 0.001;
-      const targetProgress = Math.max(0, Math.min(1, progress.value + delta));
-
-      gsap.killTweensOf(progress);
-
-      gsap.to(progress, {
-        value: targetProgress,
-        duration: 0.3,
-        ease: "power2.out",
-        onUpdate: () => {
-          updateDisintegration(progress.value);
-        },
-      });
+    function handleScroll() {
+      // Get the iframe's position relative to viewport in the parent page
+      // This will work when embedded in Framer
+      
+      // For standalone page, use window scroll
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // Calculate scroll progress (0 to 1)
+      const maxScroll = documentHeight - windowHeight;
+      const scrollProgress = maxScroll > 0 ? scrollY / maxScroll : 0;
+      
+      // Map scroll progress to explosion (you can adjust these values)
+      // When scroll is in the middle 50% of page, trigger explosion
+      let explosionProgress = 0;
+      
+      if (scrollProgress > 0.25 && scrollProgress < 0.75) {
+        // Map 0.25-0.75 scroll range to 0-1 explosion
+        explosionProgress = (scrollProgress - 0.25) / 0.5;
+      } else if (scrollProgress >= 0.75) {
+        explosionProgress = 1;
+      }
+      
+      updateDisintegration(explosionProgress);
     }
 
     function updateDisintegration(progressValue) {
@@ -537,17 +546,14 @@ function RubiksCube({ onHoverChange }) {
       }
     }
 
-    const canvas = document.querySelector("canvas");
-    if (canvas) {
-      canvas.addEventListener("wheel", handleWheel, { passive: false });
-    }
-    window.addEventListener("wheel", handleWheel, { passive: false });
+    // Listen to scroll events
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    
+    // Initial check
+    handleScroll();
 
     return () => {
-      if (canvas) {
-        canvas.removeEventListener("wheel", handleWheel);
-      }
-      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("scroll", handleScroll);
       gsap.killTweensOf(progress);
     };
   }, [pauseRotations, isReassembling]);
