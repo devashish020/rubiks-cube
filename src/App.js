@@ -481,18 +481,12 @@ function RubiksCube({ onHoverChange }) {
   });
 
   useEffect(() => {
-    const progress = { value: 0 };
-
-    function handleScroll() {
-      // Get scroll position
-      const scrollY = window.scrollY || window.pageYOffset || 0;
-      const windowHeight = window.innerHeight;
-      
-      // Use pixels scrolled instead of percentage for more control
-      // Explode completely within first viewport height (one section)
-      const explosionProgress = Math.min(scrollY / 10, 1);
-      
-      updateDisintegration(explosionProgress);
+    function handleMessage(event) {
+      // Listen for scroll messages from parent (Framer)
+      if (event.data && typeof event.data.scrollProgress === 'number') {
+        const explosionProgress = event.data.scrollProgress;
+        updateDisintegration(explosionProgress);
+      }
     }
 
     function updateDisintegration(progressValue) {
@@ -531,15 +525,11 @@ function RubiksCube({ onHoverChange }) {
       }
     }
 
-    // Listen to scroll events
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    
-    // Initial check
-    handleScroll();
+    // Listen for messages from parent window (Framer)
+    window.addEventListener("message", handleMessage);
 
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      gsap.killTweensOf(progress);
+      window.removeEventListener("message", handleMessage);
     };
   }, [pauseRotations, isReassembling]);
 
