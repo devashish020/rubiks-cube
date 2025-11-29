@@ -487,7 +487,8 @@ function RubiksCube({ onHoverChange }) {
 
     function handleWheel(e) {
       // Calculate target progress directly
-      const delta = e.deltaY * 0.001;
+      // Increased sensitivity: 0.003 instead of 0.001 (3x more sensitive)
+      const delta = e.deltaY * 0.003;
       targetProgress = Math.max(0, Math.min(1, progress.value + delta));
       
       // Use requestAnimationFrame for smooth updates
