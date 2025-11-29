@@ -482,14 +482,40 @@ function RubiksCube({ onHoverChange }) {
 
   useEffect(() => {
     const progress = { value: 0 };
+    let targetProgress = 0;
+    let animationFrameId = null;
 
     function handleWheel(e) {
-      // Calculate progress directly - NO DELAY
-      const delta = e.deltaY * 0.001;
-      progress.value = Math.max(0, Math.min(1, progress.value + delta));
+      // Calculate target progress
+      const delta = e.deltaY * 0.003;
+      targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
       
-      // Update immediately - snappy and responsive
+      // Start smooth animation loop if not already running
+      if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(smoothUpdate);
+      }
+    }
+
+    function smoothUpdate() {
+      // Fast interpolation for smooth animation without lag
+      const speed = 0.3; // Higher = snappier (0.3 is good balance)
+      const diff = targetProgress - progress.value;
+      
+      // Move towards target
+      progress.value += diff * speed;
+      
+      // Update explosion
       updateDisintegration(progress.value);
+      
+      // Continue animating if there's still movement
+      if (Math.abs(diff) > 0.001) {
+        animationFrameId = requestAnimationFrame(smoothUpdate);
+      } else {
+        // Snap to target when close enough
+        progress.value = targetProgress;
+        updateDisintegration(progress.value);
+        animationFrameId = null;
+      }
     }
 
     function updateDisintegration(progressValue) {
@@ -530,13 +556,15 @@ function RubiksCube({ onHoverChange }) {
 
     const canvas = document.querySelector("canvas");
     if (canvas) {
-      // passive: true allows scrolling to continue smoothly
       canvas.addEventListener("wheel", handleWheel, { passive: true });
     }
 
     return () => {
       if (canvas) {
         canvas.removeEventListener("wheel", handleWheel);
+      }
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
     };
   }, [pauseRotations, isReassembling]);
