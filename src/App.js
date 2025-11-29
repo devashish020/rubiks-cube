@@ -485,7 +485,7 @@ function RubiksCube({ onHoverChange }) {
 
     function handleWheel(e) {
       // Calculate progress directly - NO DELAY
-      const delta = e.deltaY * 0.002;
+      const delta = e.deltaY * 0.001;
       progress.value = Math.max(0, Math.min(1, progress.value + delta));
       
       // Update immediately - snappy and responsive
