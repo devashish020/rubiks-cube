@@ -482,37 +482,14 @@ function RubiksCube({ onHoverChange }) {
 
   useEffect(() => {
     const progress = { value: 0 };
-    let animationFrameId = null;
-    let targetProgress = 0;
 
     function handleWheel(e) {
-      // Calculate target progress directly
-      // Increased sensitivity: 0.003 instead of 0.001 (3x more sensitive)
-      const delta = e.deltaY * 0.003;
-      targetProgress = Math.max(0, Math.min(1, progress.value + delta));
+      // Calculate progress directly - NO DELAY
+      const delta = e.deltaY * 0.002;
+      progress.value = Math.max(0, Math.min(1, progress.value + delta));
       
-      // Use requestAnimationFrame for smooth updates
-      if (!animationFrameId) {
-        animationFrameId = requestAnimationFrame(updateProgress);
-      }
-    }
-
-    function updateProgress() {
-      // Smooth interpolation to target
-      const speed = 0.1; // Adjust for smoothness (0.1 = smooth, 0.5 = fast)
-      progress.value += (targetProgress - progress.value) * speed;
-      
-      // Update explosion
+      // Update immediately - snappy and responsive
       updateDisintegration(progress.value);
-      
-      // Continue animating if not close enough to target
-      if (Math.abs(targetProgress - progress.value) > 0.001) {
-        animationFrameId = requestAnimationFrame(updateProgress);
-      } else {
-        progress.value = targetProgress;
-        updateDisintegration(progress.value);
-        animationFrameId = null;
-      }
     }
 
     function updateDisintegration(progressValue) {
@@ -560,9 +537,6 @@ function RubiksCube({ onHoverChange }) {
     return () => {
       if (canvas) {
         canvas.removeEventListener("wheel", handleWheel);
-      }
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
       }
     };
   }, [pauseRotations, isReassembling]);
