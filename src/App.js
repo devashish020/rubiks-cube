@@ -84,8 +84,8 @@ function RubiksCube({ onHoverChange }) {
     attenuationDistance: { value: 0.5, min: 0, max: 10, step: 0.01 },
     attenuationColor: "#ffffff",
     color: "#ffffff",
-    samples: { value: 10, min: 1, max: 32, step: 1 },
-    resolution: { value: 2048, min: 256, max: 2048, step: 256 },
+    samples: { value: 6, min: 1, max: 32, step: 1 }, // Reduced from 10 to 6
+    resolution: { value: 1024, min: 256, max: 2048, step: 256 }, // Reduced from 2048 to 1024
     backside: false,
   });
 
@@ -103,7 +103,7 @@ function RubiksCube({ onHoverChange }) {
   const spacing = 1.05;
   const cubeSize = 0.95;
   const radius = 0.08;
-  const smoothness = 4;
+  const smoothness = 2; // Reduced from 4 to 2 for better performance
 
   useEffect(() => {
     let cubeIndex = 0;
@@ -730,7 +730,16 @@ export default function App() {
     <div style={{ width: "100vw", height: "100vh", background: "transparent" }}>
       <Canvas 
         camera={{ position: [8, 8, 8], fov: 50 }}
-        gl={{ alpha: true, premultipliedAlpha: false }}
+        gl={{ 
+          alpha: true, 
+          premultipliedAlpha: false,
+          antialias: false, // Disable for performance
+          powerPreference: "high-performance",
+          stencil: false,
+          depth: true
+        }}
+        dpr={[1, 1.5]} // Limit pixel ratio for performance
+        performance={{ min: 0.5 }} // Allow framerate to drop if needed
         style={{ background: "transparent" }}
       >
         <ambientLight intensity={Math.PI} />
