@@ -574,7 +574,7 @@ function RubiksCube({ onHoverChange }) {
 
     function smoothUpdate() {
       // Fast interpolation for smooth animation without lag
-      const speed = 0.3;
+      const speed = 0.25;
       const diff = targetProgress - progress.value;
       
       // Move towards target
