@@ -499,28 +499,28 @@ function RubiksCube({ onHoverChange }) {
     function handleKeyDown(e) {
       // Handle arrow keys (works on Vercel direct)
       if (e.key === 'ArrowDown') {
-        const delta = 0.3; // 45% per arrow key
+        const delta = 0.3; // 30% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'ArrowUp') {
-        const delta = -0.3; // 45% per arrow key
+        const delta = -0.3; // 30% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageDown') {
-        const delta = 0.8; // 90% per page down
+        const delta = 0.8; // 80% per page down
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageUp') {
-        const delta = -0.8; // 90% per page up
+        const delta = -0.8; // 80% per page up
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
@@ -610,6 +610,9 @@ function RubiksCube({ onHoverChange }) {
         }
 
         takeSnapshot();
+        
+        // IMPORTANT: Set explosion progress immediately so it shows on first key press
+        setExplosionProgress(progressValue);
       }
 
       if (progressValue <= 0.01 && pauseRotations && !isReassembling) {
