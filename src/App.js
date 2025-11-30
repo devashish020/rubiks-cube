@@ -487,7 +487,7 @@ function RubiksCube({ onHoverChange }) {
 
     function handleWheel(e) {
       // Calculate target progress from wheel
-      const delta = e.deltaY * 0.003;
+      const delta = e.deltaY * 0.001;
       targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
       
       // Start smooth animation loop if not already running
