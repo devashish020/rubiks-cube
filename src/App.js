@@ -487,7 +487,7 @@ function RubiksCube({ onHoverChange }) {
 
     function handleWheel(e) {
       // Calculate target progress from wheel
-      const delta = e.deltaY * 0.0025;
+      const delta = e.deltaY * 0.003;
       targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
       
       // Start smooth animation loop if not already running
@@ -574,7 +574,7 @@ function RubiksCube({ onHoverChange }) {
 
     function smoothUpdate() {
       // Fast interpolation for smooth animation without lag
-      const speed = 0.25;
+      const speed = 0.2;
       const diff = targetProgress - progress.value;
       
       // Move towards target
