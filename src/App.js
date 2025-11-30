@@ -11,7 +11,7 @@ import { useControls } from "leva";
 import { useRef, useState, useEffect } from "react";
 import gsap from "gsap";
 
-function RubiksCube({ onHoverChange }) {
+function RubiksCube({ onHoverChange, onExplosionChange }) {
   const groupRef = useRef();
   const cubesRef = useRef([]);
 
@@ -28,6 +28,13 @@ function RubiksCube({ onHoverChange }) {
   const { camera, gl } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
+
+  // Notify parent when explosion state changes
+  useEffect(() => {
+    if (onExplosionChange) {
+      onExplosionChange(pauseRotations);
+    }
+  }, [pauseRotations, onExplosionChange]);
 
   useEffect(() => {
     if (!gl || !gl.domElement) return;
@@ -816,6 +823,7 @@ function RubiksCube({ onHoverChange }) {
 
 export default function App() {
   const [hoveredCube, setHoveredCube] = useState(null);
+  const [isExploding, setIsExploding] = useState(false);
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "transparent" }}>
@@ -835,14 +843,18 @@ export default function App() {
         style={{ background: "transparent" }}
       >
         <ambientLight intensity={Math.PI} />
-        <RubiksCube onHoverChange={setHoveredCube} />
-        <ContactShadows
-          position={[0, -2, 0]}
-          opacity={0.4}
-          scale={10}
-          blur={2}
-          far={4}
-        />
+        <RubiksCube onHoverChange={setHoveredCube} onExplosionChange={setIsExploding} />
+        {!isExploding && (
+          <ContactShadows
+            position={[0, -2, 0]}
+            opacity={0.25}
+            scale={10}
+            blur={1.5}
+            far={2.5}
+            resolution={256}
+            frames={1}
+          />
+        )}
         <Environment
           files="https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr"
           background={false}
