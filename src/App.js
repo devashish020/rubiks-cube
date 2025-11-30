@@ -498,15 +498,29 @@ function RubiksCube({ onHoverChange }) {
 
     function handleKeyDown(e) {
       // Handle arrow keys (works on Vercel direct)
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        const delta = 0.05;
+      if (e.key === 'ArrowDown') {
+        const delta = 0.45; // 45% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
-      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        const delta = -0.05;
+      } else if (e.key === 'ArrowUp') {
+        const delta = -0.45; // 45% per arrow key
+        targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+        
+        if (!animationFrameId) {
+          animationFrameId = requestAnimationFrame(smoothUpdate);
+        }
+      } else if (e.key === 'PageDown') {
+        const delta = 0.9; // 90% per page down
+        targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+        
+        if (!animationFrameId) {
+          animationFrameId = requestAnimationFrame(smoothUpdate);
+        }
+      } else if (e.key === 'PageUp') {
+        const delta = -0.9; // 90% per page up
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
@@ -519,15 +533,29 @@ function RubiksCube({ onHoverChange }) {
       // Listen for messages from parent (Framer)
       if (event.data && event.data.type === 'keyboard') {
         // Keyboard event from parent
-        if (event.data.key === 'ArrowDown' || event.data.key === 'PageDown') {
-          const delta = 0.05;
+        if (event.data.key === 'ArrowDown') {
+          const delta = 0.45; // 45% per arrow key
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(smoothUpdate);
           }
-        } else if (event.data.key === 'ArrowUp' || event.data.key === 'PageUp') {
-          const delta = -0.05;
+        } else if (event.data.key === 'ArrowUp') {
+          const delta = -0.45; // 45% per arrow key
+          targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+          
+          if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(smoothUpdate);
+          }
+        } else if (event.data.key === 'PageDown') {
+          const delta = 0.9; // 90% per page down
+          targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+          
+          if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(smoothUpdate);
+          }
+        } else if (event.data.key === 'PageUp') {
+          const delta = -0.9; // 90% per page up
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
