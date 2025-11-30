@@ -31,187 +31,174 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   
   // Audio context for hover sounds
   const audioContextRef = useRef(null);
-  const lastHoveredCube = useRef(null);
   const activeOscillators = useRef({}); // Track active sounds per cube
   const audioInitialized = useRef(false);
-  const hoverDebounceTimers = useRef({});
+  const globalGainNode = useRef(null);
+  const cooldownTimers = useRef({});
 
   // Initialize audio context
   const initAudio = () => {
     if (!audioInitialized.current) {
       try {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = ctx;
+        
+        // Create global gain node for master volume control
+        globalGainNode.current = ctx.createGain();
+        globalGainNode.current.gain.setValueAtTime(0.012, ctx.currentTime); // Master volume
+        globalGainNode.current.connect(ctx.destination);
+        
         audioInitialized.current = true;
         console.log('🔊 Audio enabled');
+        return true;
       } catch (err) {
         console.error('Audio initialization failed:', err);
+        return false;
       }
     }
+    return true;
   };
 
   useEffect(() => {
-    // Try to initialize immediately
-    initAudio();
+    // Try to auto-start with a simulated user gesture
+    const autoStart = async () => {
+      // Wait a tiny bit for page to settle
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Try to initialize
+      if (initAudio()) {
+        // Resume context if suspended (common in some browsers)
+        if (audioContextRef.current?.state === 'suspended') {
+          try {
+            await audioContextRef.current.resume();
+            console.log('🔊 Audio context resumed');
+          } catch (err) {
+            console.log('Will enable on first interaction');
+          }
+        }
+      }
+    };
+    
+    autoStart();
 
-    // Also listen for first interaction as backup
-    const enableOnInteraction = () => {
-      initAudio();
+    // Backup: listen for any interaction
+    const enableOnInteraction = async () => {
+      if (initAudio() && audioContextRef.current?.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
     };
 
-    window.addEventListener('click', enableOnInteraction, { once: true });
-    window.addEventListener('touchstart', enableOnInteraction, { once: true });
-    window.addEventListener('mousemove', enableOnInteraction, { once: true });
+    document.addEventListener('click', enableOnInteraction, { once: true, capture: true });
+    document.addEventListener('touchstart', enableOnInteraction, { once: true, capture: true });
+    document.addEventListener('keydown', enableOnInteraction, { once: true, capture: true });
 
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
-      // Clean up any pending timers
-      Object.values(hoverDebounceTimers.current).forEach(timer => clearTimeout(timer));
+      // Clean up all timers
+      Object.values(cooldownTimers.current).forEach(timer => clearTimeout(timer));
     };
   }, []);
 
   // Piano note frequencies (C major scale across 3 octaves for 27 cubes)
   const getNoteFrequency = (index) => {
-    // C major scale notes
     const baseFrequencies = [
-      261.63, // C4
-      293.66, // D4
-      329.63, // E4
-      349.23, // F4
-      392.00, // G4
-      440.00, // A4
-      493.88, // B4
-      523.25, // C5
-      587.33, // D5
-      659.25, // E5
-      698.46, // F5
-      783.99, // G5
-      880.00, // A5
-      987.77, // B5
-      1046.50, // C6
-      1174.66, // D6
-      1318.51, // E6
-      1396.91, // F6
-      1567.98, // G6
-      1760.00, // A6
-      1975.53, // B6
-      2093.00, // C7
-      2349.32, // D7
-      2637.02, // E7
-      2793.83, // F7
-      3135.96, // G7
-      3520.00, // A7
+      261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88,
+      523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77,
+      1046.50, 1174.66, 1318.51, 1396.91, 1567.98, 1760.00, 1975.53,
+      2093.00, 2349.32, 2637.02, 2793.83, 3135.96, 3520.00
     ];
     return baseFrequencies[index % 27];
   };
 
-  // Play piano sound on hover
-  const playSound = (cubeIndex) => {
-    // Try to initialize audio on first hover
+  // Play piano sound on hover with strict anti-overlap
+  const playSound = async (cubeIndex) => {
+    // Try to initialize/resume audio
     if (!audioContextRef.current) {
       initAudio();
     }
     
-    if (!audioContextRef.current) return;
+    if (!audioContextRef.current || !globalGainNode.current) return;
     
-    // Clear any pending debounce timer for this cube
-    if (hoverDebounceTimers.current[cubeIndex]) {
-      clearTimeout(hoverDebounceTimers.current[cubeIndex]);
-      delete hoverDebounceTimers.current[cubeIndex];
+    // Resume if suspended
+    if (audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+      } catch (err) {
+        return;
+      }
     }
     
-    // Don't retrigger if already playing this cube
-    if (activeOscillators.current[cubeIndex]) {
+    // STRICT: Don't play if in cooldown or already playing
+    if (cooldownTimers.current[cubeIndex] || activeOscillators.current[cubeIndex]) {
       return;
     }
     
-    lastHoveredCube.current = cubeIndex;
+    // Set cooldown immediately to prevent rapid retriggering
+    cooldownTimers.current[cubeIndex] = true;
     
     const ctx = audioContextRef.current;
     const frequency = getNoteFrequency(cubeIndex);
     
-    // Create oscillator (main tone)
+    // Create oscillator
     const oscillator = ctx.createOscillator();
-    oscillator.type = 'sine'; // Smooth piano-like sound
+    oscillator.type = 'sine';
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control - ultra soft
-    const gainNode = ctx.createGain();
-    gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
-    gainNode.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 0.08); // Slower fade in
+    // Local gain for this note (extra control)
+    const localGain = ctx.createGain();
+    localGain.gain.setValueAtTime(0, ctx.currentTime);
+    localGain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.1); // Gentle fade in
     
-    // Add subtle reverb/richness with second oscillator
-    const oscillator2 = ctx.createOscillator();
-    oscillator2.type = 'sine';
-    oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
+    // Connect: oscillator -> localGain -> globalGain -> destination
+    oscillator.connect(localGain);
+    localGain.connect(globalGainNode.current);
     
-    const gainNode2 = ctx.createGain();
-    gainNode2.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.08); // Slower fade in
-    
-    // Connect nodes
-    oscillator.connect(gainNode);
-    oscillator2.connect(gainNode2);
-    gainNode.connect(ctx.destination);
-    gainNode2.connect(ctx.destination);
-    
-    // Start oscillators
+    // Start
     oscillator.start(ctx.currentTime);
-    oscillator2.start(ctx.currentTime);
     
-    // Store references for cleanup
+    // Store reference
     activeOscillators.current[cubeIndex] = {
       oscillator,
-      oscillator2,
-      gainNode,
-      gainNode2,
+      localGain,
       startTime: ctx.currentTime
     };
   };
 
-  // Stop sound with gradual fade out
+  // Stop sound - called when pointer leaves
   const stopSound = (cubeIndex) => {
     const active = activeOscillators.current[cubeIndex];
-    if (!active || !audioContextRef.current) return;
-    
-    const ctx = audioContextRef.current;
-    const fadeOutTime = 0.5; // Longer, smoother fade out
-    
-    try {
-      // Get current gain values
-      const currentGain1 = active.gainNode.gain.value;
-      const currentGain2 = active.gainNode2.gain.value;
-      
-      // Only fade out if there's volume to fade
-      if (currentGain1 > 0 || currentGain2 > 0) {
-        // Fade out main oscillator
-        active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
-        active.gainNode.gain.setValueAtTime(currentGain1, ctx.currentTime);
-        active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
-        
-        // Fade out second oscillator
-        active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
-        active.gainNode2.gain.setValueAtTime(currentGain2, ctx.currentTime);
-        active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
-        
-        // Stop oscillators after fade out
-        active.oscillator.stop(ctx.currentTime + fadeOutTime);
-        active.oscillator2.stop(ctx.currentTime + fadeOutTime);
-      }
-    } catch (err) {
-      // Oscillator might already be stopped
-      console.log('Sound cleanup:', err.message);
+    if (!active || !audioContextRef.current) {
+      // Clear cooldown even if nothing playing
+      setTimeout(() => {
+        delete cooldownTimers.current[cubeIndex];
+      }, 150);
+      return;
     }
     
-    // Clean up reference after fade completes
-    hoverDebounceTimers.current[cubeIndex] = setTimeout(() => {
+    const ctx = audioContextRef.current;
+    const fadeOutTime = 0.6; // Long, smooth fade
+    
+    try {
+      const currentGain = active.localGain.gain.value;
+      
+      // Cancel any scheduled changes and start fresh
+      active.localGain.gain.cancelScheduledValues(ctx.currentTime);
+      active.localGain.gain.setValueAtTime(currentGain, ctx.currentTime);
+      active.localGain.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+      
+      // Stop oscillator
+      active.oscillator.stop(ctx.currentTime + fadeOutTime);
+    } catch (err) {
+      // Already stopped
+    }
+    
+    // Clean up after fade completes
+    setTimeout(() => {
       delete activeOscillators.current[cubeIndex];
-      delete hoverDebounceTimers.current[cubeIndex];
-      if (lastHoveredCube.current === cubeIndex) {
-        lastHoveredCube.current = null;
-      }
-    }, fadeOutTime * 1000 + 100);
+      delete cooldownTimers.current[cubeIndex];
+    }, (fadeOutTime * 1000) + 100);
   };
 
   // Notify parent when explosion state changes
