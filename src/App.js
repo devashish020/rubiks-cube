@@ -44,50 +44,44 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     };
   }, []);
 
-  // Harp note frequencies - Pentatonic scale (LOW and MID range only)
+  // Soft piano note frequencies - Pentatonic scale (only soft, pleasant notes)
   const getNoteFrequency = (index) => {
-    // Pentatonic scale (C, D, E, G, A) - only low and mid range for soothing sound
-    const harpFrequencies = [
-      // Low range (warm, deep)
-      130.81, // C3
-      146.83, // D3
-      164.81, // E3
-      196.00, // G3
-      220.00, // A3
-      
-      // Mid-low range
+    // Pentatonic scale (C, D, E, G, A) - avoids harsh intervals
+    // Using mid-range for soft, mellow piano sound
+    const softPianoNotes = [
       261.63, // C4
       293.66, // D4
       329.63, // E4
       392.00, // G4
       440.00, // A4
-      
-      // Mid range (sweet spot)
       523.25, // C5
       587.33, // D5
       659.25, // E5
       783.99, // G5
       880.00, // A5
-      
-      // Mid-high range (gentle, not too bright)
       1046.50, // C6
       1174.66, // D6
       1318.51, // E6
       1567.98, // G6
       1760.00, // A6
-      
-      // Fill remaining slots with mid range repetition
+      // Repeat lower octave for remaining cubes (warm tones)
+      261.63, // C4
+      293.66, // D4
+      329.63, // E4
+      392.00, // G4
+      440.00, // A4
       523.25, // C5
       587.33, // D5
       659.25, // E5
       783.99, // G5
       880.00, // A5
       1046.50, // C6
+      1174.66, // D6
     ];
-    return harpFrequencies[index % 27];
+    return softPianoNotes[index % 27];
   };
 
-  // Play harp sound on hover
+  // Play soft piano sound on hover
   const playSound = (cubeIndex) => {
     if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
     
@@ -99,24 +93,24 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     const ctx = audioContextRef.current;
     const frequency = getNoteFrequency(cubeIndex);
     
-    // Create oscillator (main tone) - triangle wave for harp-like warmth
+    // Create oscillator (main tone) - sine wave for soft piano
     const oscillator = ctx.createOscillator();
-    oscillator.type = 'triangle'; // Warmer, harp-like sound
+    oscillator.type = 'sine'; // Pure, soft tone
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control
+    // Create gain node for volume control - VERY LOW volume
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
-    gainNode.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.08); // Gentle fade in
+    gainNode.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 0.1); // Very soft fade in
     
-    // Add subtle harmonic for harp shimmer
+    // Add subtle harmonic for piano richness (very minimal)
     const oscillator2 = ctx.createOscillator();
-    oscillator2.type = 'sine'; // Pure harmonic
+    oscillator2.type = 'sine';
     oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
     
     const gainNode2 = ctx.createGain();
     gainNode2.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode2.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 0.08); // Very subtle sparkle
+    gainNode2.gain.linearRampToValueAtTime(0.008, ctx.currentTime + 0.1); // Barely audible harmonic
     
     // Connect nodes
     oscillator.connect(gainNode);
@@ -138,13 +132,13 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     };
   };
 
-  // Stop sound with gradual fade out (harp-like decay)
+  // Stop sound with gradual fade out (gentle piano decay)
   const stopSound = (cubeIndex) => {
     const active = activeOscillators.current[cubeIndex];
     if (!active || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const fadeOutTime = 0.6; // Longer fade for harp-like sustain
+    const fadeOutTime = 0.7; // Long, smooth piano decay
     
     try {
       // Fade out main oscillator
@@ -155,7 +149,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
       // Fade out second oscillator (harmonic fades slightly faster)
       active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
       active.gainNode2.gain.setValueAtTime(active.gainNode2.gain.value, ctx.currentTime);
-      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime * 0.8);
+      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime * 0.85);
       
       // Stop oscillators after fade out
       active.oscillator.stop(ctx.currentTime + fadeOutTime);
