@@ -497,19 +497,46 @@ function RubiksCube({ onHoverChange }) {
     }
 
     function handleKeyDown(e) {
-      // Handle arrow keys
+      // Handle arrow keys (works on Vercel direct)
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        // Down arrow = explode (same as scrolling down)
-        const delta = 0.05; // Adjust sensitivity for keyboard
+        const delta = 0.05;
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        // Up arrow = reassemble (same as scrolling up)
-        const delta = -0.05; // Negative for going back
+        const delta = -0.05;
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+        
+        if (!animationFrameId) {
+          animationFrameId = requestAnimationFrame(smoothUpdate);
+        }
+      }
+    }
+
+    function handleMessage(event) {
+      // Listen for messages from parent (Framer)
+      if (event.data && event.data.type === 'keyboard') {
+        // Keyboard event from parent
+        if (event.data.key === 'ArrowDown' || event.data.key === 'PageDown') {
+          const delta = 0.05;
+          targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+          
+          if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(smoothUpdate);
+          }
+        } else if (event.data.key === 'ArrowUp' || event.data.key === 'PageUp') {
+          const delta = -0.05;
+          targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+          
+          if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(smoothUpdate);
+          }
+        }
+      } else if (event.data && typeof event.data.scrollProgress === 'number') {
+        // Scroll progress from parent
+        targetProgress = event.data.scrollProgress;
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
@@ -519,7 +546,7 @@ function RubiksCube({ onHoverChange }) {
 
     function smoothUpdate() {
       // Fast interpolation for smooth animation without lag
-      const speed = 0.3; // Higher = snappier (0.3 is good balance)
+      const speed = 0.3;
       const diff = targetProgress - progress.value;
       
       // Move towards target
@@ -580,14 +607,18 @@ function RubiksCube({ onHoverChange }) {
       canvas.addEventListener("wheel", handleWheel, { passive: true });
     }
     
-    // Add keyboard event listeners
+    // Listen for keyboard events (works when directly on Vercel)
     window.addEventListener("keydown", handleKeyDown);
+    
+    // Listen for messages from parent (works in Framer iframe)
+    window.addEventListener("message", handleMessage);
 
     return () => {
       if (canvas) {
         canvas.removeEventListener("wheel", handleWheel);
       }
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("message", handleMessage);
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
@@ -720,7 +751,7 @@ function RubiksCube({ onHoverChange }) {
                 ) : (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color("#FFFFFF")}
+                    background={new THREE.Color("#f0f0f0")}
                   />
                 )}
               </RoundedBox>
