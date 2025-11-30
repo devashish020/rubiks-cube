@@ -852,7 +852,7 @@ export default function App() {
             blur={1.5}
             far={4}
             resolution={256}
-            //frames={2}
+            frames={10}
           />
         )}
         <Environment
