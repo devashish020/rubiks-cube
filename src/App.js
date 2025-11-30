@@ -32,6 +32,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   // Audio context for hover sounds
   const audioContextRef = useRef(null);
   const lastHoveredCube = useRef(null);
+  const activeOscillators = useRef({}); // Track active sounds per cube
 
   // Initialize audio context
   useEffect(() => {
@@ -82,6 +83,9 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const playSound = (cubeIndex) => {
     if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
     
+    // Stop any existing sound for this cube first
+    stopSound(cubeIndex);
+    
     lastHoveredCube.current = cubeIndex;
     
     const ctx = audioContextRef.current;
@@ -92,10 +96,10 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     oscillator.type = 'sine'; // Smooth piano-like sound
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control and fade out
+    // Create gain node for volume control
     const gainNode = ctx.createGain();
-    gainNode.gain.setValueAtTime(0.15, ctx.currentTime); // Soft volume
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8); // Fade out
+    gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
+    gainNode.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.05); // Soft fade in
     
     // Add subtle reverb/richness with second oscillator
     const oscillator2 = ctx.createOscillator();
@@ -103,8 +107,8 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
     
     const gainNode2 = ctx.createGain();
-    gainNode2.gain.setValueAtTime(0.05, ctx.currentTime); // Very subtle
-    gainNode2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+    gainNode2.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode2.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.05); // Very subtle
     
     // Connect nodes
     oscillator.connect(gainNode);
@@ -112,18 +116,53 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     gainNode.connect(ctx.destination);
     gainNode2.connect(ctx.destination);
     
-    // Start and stop
+    // Start oscillators
     oscillator.start(ctx.currentTime);
     oscillator2.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.8);
-    oscillator2.stop(ctx.currentTime + 0.6);
     
-    // Reset last hovered after a short delay
-    setTimeout(() => {
-      if (lastHoveredCube.current === cubeIndex) {
-        lastHoveredCube.current = null;
-      }
-    }, 100);
+    // Store references for cleanup
+    activeOscillators.current[cubeIndex] = {
+      oscillator,
+      oscillator2,
+      gainNode,
+      gainNode2,
+      startTime: ctx.currentTime
+    };
+  };
+
+  // Stop sound with gradual fade out
+  const stopSound = (cubeIndex) => {
+    const active = activeOscillators.current[cubeIndex];
+    if (!active || !audioContextRef.current) return;
+    
+    const ctx = audioContextRef.current;
+    const fadeOutTime = 0.4; // Smooth fade out duration
+    
+    try {
+      // Fade out main oscillator
+      active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
+      active.gainNode.gain.setValueAtTime(active.gainNode.gain.value, ctx.currentTime);
+      active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+      
+      // Fade out second oscillator
+      active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
+      active.gainNode2.gain.setValueAtTime(active.gainNode2.gain.value, ctx.currentTime);
+      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+      
+      // Stop oscillators after fade out
+      active.oscillator.stop(ctx.currentTime + fadeOutTime);
+      active.oscillator2.stop(ctx.currentTime + fadeOutTime);
+    } catch (err) {
+      // Oscillator might already be stopped
+      console.log('Sound cleanup:', err.message);
+    }
+    
+    // Clean up reference
+    delete activeOscillators.current[cubeIndex];
+    
+    if (lastHoveredCube.current === cubeIndex) {
+      lastHoveredCube.current = null;
+    }
   };
 
   // Notify parent when explosion state changes
@@ -844,7 +883,12 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
             ref={(el) => (cubesRef.current[idx] = el)}
           >
             {isCenter ? (
-              <mesh castShadow receiveShadow onPointerEnter={() => playSound(idx)}>
+              <mesh 
+                castShadow 
+                receiveShadow 
+                onPointerEnter={() => playSound(idx)}
+                onPointerLeave={() => stopSound(idx)}
+              >
                 <primitive object={centerGeometry} attach="geometry" />
                 <meshStandardMaterial
                   emissive="#ffffff"
@@ -870,6 +914,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
                 castShadow
                 receiveShadow
                 onPointerEnter={() => playSound(idx)}
+                onPointerLeave={() => stopSound(idx)}
               >
                 {isGradientCube ? (
                   <MeshTransmissionMaterial
