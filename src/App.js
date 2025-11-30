@@ -33,10 +33,22 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const audioContextRef = useRef(null);
   const lastHoveredCube = useRef(null);
   const activeOscillators = useRef({}); // Track active sounds per cube
+  const audioInitialized = useRef(false);
 
-  // Initialize audio context
+  // Initialize audio context on first user interaction
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    const initAudio = () => {
+      if (!audioInitialized.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        audioInitialized.current = true;
+        console.log('🔊 Audio enabled - hover over cubes to hear sounds!');
+      }
+    };
+
+    // Listen for any click or touch to initialize audio
+    window.addEventListener('click', initAudio, { once: true });
+    window.addEventListener('touchstart', initAudio, { once: true });
+
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
@@ -96,10 +108,10 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     oscillator.type = 'sine'; // Smooth piano-like sound
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control
+    // Create gain node for volume control - 20% of previous volume
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
-    gainNode.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.05); // Soft fade in
+    gainNode.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 0.05); // 20% of 0.06
     
     // Add subtle reverb/richness with second oscillator
     const oscillator2 = ctx.createOscillator();
@@ -108,7 +120,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     
     const gainNode2 = ctx.createGain();
     gainNode2.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode2.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.05); // Very subtle
+    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.05); // 20% of 0.02
     
     // Connect nodes
     oscillator.connect(gainNode);
