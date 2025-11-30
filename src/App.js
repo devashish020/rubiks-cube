@@ -499,14 +499,14 @@ function RubiksCube({ onHoverChange }) {
     function handleKeyDown(e) {
       // Handle arrow keys (works on Vercel direct)
       if (e.key === 'ArrowDown') {
-        const delta = 0.2; // 30% per arrow key
+        const delta = 0.1; // 30% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'ArrowUp') {
-        const delta = -0.2; // 30% per arrow key
+        const delta = -0.1; // 30% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
