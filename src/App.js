@@ -34,25 +34,40 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const lastHoveredCube = useRef(null);
   const activeOscillators = useRef({}); // Track active sounds per cube
   const audioInitialized = useRef(false);
+  const hoverDebounceTimers = useRef({});
 
-  // Initialize audio context on first user interaction
-  useEffect(() => {
-    const initAudio = () => {
-      if (!audioInitialized.current) {
+  // Initialize audio context
+  const initAudio = () => {
+    if (!audioInitialized.current) {
+      try {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         audioInitialized.current = true;
-        console.log('🔊 Audio enabled - hover over cubes to hear sounds!');
+        console.log('🔊 Audio enabled');
+      } catch (err) {
+        console.error('Audio initialization failed:', err);
       }
+    }
+  };
+
+  useEffect(() => {
+    // Try to initialize immediately
+    initAudio();
+
+    // Also listen for first interaction as backup
+    const enableOnInteraction = () => {
+      initAudio();
     };
 
-    // Listen for any click or touch to initialize audio
-    window.addEventListener('click', initAudio, { once: true });
-    window.addEventListener('touchstart', initAudio, { once: true });
+    window.addEventListener('click', enableOnInteraction, { once: true });
+    window.addEventListener('touchstart', enableOnInteraction, { once: true });
+    window.addEventListener('mousemove', enableOnInteraction, { once: true });
 
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
+      // Clean up any pending timers
+      Object.values(hoverDebounceTimers.current).forEach(timer => clearTimeout(timer));
     };
   }, []);
 
@@ -93,10 +108,23 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
 
   // Play piano sound on hover
   const playSound = (cubeIndex) => {
-    if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
+    // Try to initialize audio on first hover
+    if (!audioContextRef.current) {
+      initAudio();
+    }
     
-    // Stop any existing sound for this cube first
-    stopSound(cubeIndex);
+    if (!audioContextRef.current) return;
+    
+    // Clear any pending debounce timer for this cube
+    if (hoverDebounceTimers.current[cubeIndex]) {
+      clearTimeout(hoverDebounceTimers.current[cubeIndex]);
+      delete hoverDebounceTimers.current[cubeIndex];
+    }
+    
+    // Don't retrigger if already playing this cube
+    if (activeOscillators.current[cubeIndex]) {
+      return;
+    }
     
     lastHoveredCube.current = cubeIndex;
     
@@ -108,10 +136,10 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     oscillator.type = 'sine'; // Smooth piano-like sound
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control - 20% of previous volume
+    // Create gain node for volume control - ultra soft
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
-    gainNode.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 0.05); // 20% of 0.06
+    gainNode.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 0.08); // Slower fade in
     
     // Add subtle reverb/richness with second oscillator
     const oscillator2 = ctx.createOscillator();
@@ -120,7 +148,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     
     const gainNode2 = ctx.createGain();
     gainNode2.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.05); // 20% of 0.02
+    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.08); // Slower fade in
     
     // Connect nodes
     oscillator.connect(gainNode);
@@ -148,33 +176,42 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     if (!active || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const fadeOutTime = 0.4; // Smooth fade out duration
+    const fadeOutTime = 0.5; // Longer, smoother fade out
     
     try {
-      // Fade out main oscillator
-      active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
-      active.gainNode.gain.setValueAtTime(active.gainNode.gain.value, ctx.currentTime);
-      active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+      // Get current gain values
+      const currentGain1 = active.gainNode.gain.value;
+      const currentGain2 = active.gainNode2.gain.value;
       
-      // Fade out second oscillator
-      active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
-      active.gainNode2.gain.setValueAtTime(active.gainNode2.gain.value, ctx.currentTime);
-      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
-      
-      // Stop oscillators after fade out
-      active.oscillator.stop(ctx.currentTime + fadeOutTime);
-      active.oscillator2.stop(ctx.currentTime + fadeOutTime);
+      // Only fade out if there's volume to fade
+      if (currentGain1 > 0 || currentGain2 > 0) {
+        // Fade out main oscillator
+        active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
+        active.gainNode.gain.setValueAtTime(currentGain1, ctx.currentTime);
+        active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+        
+        // Fade out second oscillator
+        active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
+        active.gainNode2.gain.setValueAtTime(currentGain2, ctx.currentTime);
+        active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+        
+        // Stop oscillators after fade out
+        active.oscillator.stop(ctx.currentTime + fadeOutTime);
+        active.oscillator2.stop(ctx.currentTime + fadeOutTime);
+      }
     } catch (err) {
       // Oscillator might already be stopped
       console.log('Sound cleanup:', err.message);
     }
     
-    // Clean up reference
-    delete activeOscillators.current[cubeIndex];
-    
-    if (lastHoveredCube.current === cubeIndex) {
-      lastHoveredCube.current = null;
-    }
+    // Clean up reference after fade completes
+    hoverDebounceTimers.current[cubeIndex] = setTimeout(() => {
+      delete activeOscillators.current[cubeIndex];
+      delete hoverDebounceTimers.current[cubeIndex];
+      if (lastHoveredCube.current === cubeIndex) {
+        lastHoveredCube.current = null;
+      }
+    }, fadeOutTime * 1000 + 100);
   };
 
   // Notify parent when explosion state changes
