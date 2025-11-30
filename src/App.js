@@ -33,10 +33,22 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const audioContextRef = useRef(null);
   const lastHoveredCube = useRef(null);
   const activeOscillators = useRef({}); // Track active sounds per cube
+  const audioInitialized = useRef(false);
 
-  // Initialize audio context
+  // Initialize audio context on first user interaction
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    const initAudio = () => {
+      if (!audioInitialized.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        audioInitialized.current = true;
+        console.log('🔊 Audio enabled - hover over cubes to hear sounds!');
+      }
+    };
+
+    // Listen for any click or touch to initialize audio
+    window.addEventListener('click', initAudio, { once: true });
+    window.addEventListener('touchstart', initAudio, { once: true });
+
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
@@ -44,78 +56,71 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     };
   }, []);
 
-  // Soft piano note frequencies - Pentatonic scale (only soft, pleasant notes)
+  // Piano note frequencies (C major scale across 3 octaves for 27 cubes)
   const getNoteFrequency = (index) => {
-    // Pentatonic scale (C, D, E, G, A) - avoids harsh intervals
-    // Using mid-range for soft, mellow piano sound
-    const softPianoNotes = [
+    // C major scale notes
+    const baseFrequencies = [
       261.63, // C4
       293.66, // D4
       329.63, // E4
+      349.23, // F4
       392.00, // G4
       440.00, // A4
+      493.88, // B4
       523.25, // C5
       587.33, // D5
       659.25, // E5
+      698.46, // F5
       783.99, // G5
       880.00, // A5
+      987.77, // B5
       1046.50, // C6
       1174.66, // D6
       1318.51, // E6
+      1396.91, // F6
       1567.98, // G6
       1760.00, // A6
-      // Repeat lower octave for remaining cubes (warm tones)
-      261.63, // C4
-      293.66, // D4
-      329.63, // E4
-      392.00, // G4
-      440.00, // A4
-      523.25, // C5
-      587.33, // D5
-      659.25, // E5
-      783.99, // G5
-      880.00, // A5
-      1046.50, // C6
-      1174.66, // D6
+      1975.53, // B6
+      2093.00, // C7
+      2349.32, // D7
+      2637.02, // E7
+      2793.83, // F7
+      3135.96, // G7
+      3520.00, // A7
     ];
-    return softPianoNotes[index % 27];
+    return baseFrequencies[index % 27];
   };
 
-  // Play soft piano sound on hover
+  // Play piano sound on hover
   const playSound = (cubeIndex) => {
-    if (!audioContextRef.current) return;
+    if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
     
-    // IMPORTANT: Stop ALL existing sounds first to prevent volume accumulation
-    Object.keys(activeOscillators.current).forEach(key => {
-      stopSound(parseInt(key));
-    });
-    
-    // Don't retrigger same cube immediately
-    if (lastHoveredCube.current === cubeIndex) return;
+    // Stop any existing sound for this cube first
+    stopSound(cubeIndex);
     
     lastHoveredCube.current = cubeIndex;
     
     const ctx = audioContextRef.current;
     const frequency = getNoteFrequency(cubeIndex);
     
-    // Create oscillator (main tone) - sine wave for soft piano
+    // Create oscillator (main tone)
     const oscillator = ctx.createOscillator();
-    oscillator.type = 'sine'; // Pure, soft tone
+    oscillator.type = 'sine'; // Smooth piano-like sound
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control - EXTREMELY LOW volume
+    // Create gain node for volume control - 20% of previous volume
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
-    gainNode.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 0.15); // Very slow, gentle fade in
+    gainNode.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 0.05); // 20% of 0.06
     
-    // Add subtle harmonic for piano richness (minimal)
+    // Add subtle reverb/richness with second oscillator
     const oscillator2 = ctx.createOscillator();
     oscillator2.type = 'sine';
     oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
     
     const gainNode2 = ctx.createGain();
     gainNode2.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.15); // Extremely subtle harmonic
+    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.05); // 20% of 0.02
     
     // Connect nodes
     oscillator.connect(gainNode);
@@ -137,38 +142,34 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     };
   };
 
-  // Stop sound with gradual fade out (gentle piano decay)
+  // Stop sound with gradual fade out
   const stopSound = (cubeIndex) => {
     const active = activeOscillators.current[cubeIndex];
     if (!active || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const fadeOutTime = 0.3; // Faster fade to prevent overlaps
+    const fadeOutTime = 0.4; // Smooth fade out duration
     
     try {
-      // Get current gain values
-      const currentGain1 = active.gainNode.gain.value;
-      const currentGain2 = active.gainNode2.gain.value;
-      
       // Fade out main oscillator
       active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
-      active.gainNode.gain.setValueAtTime(currentGain1, ctx.currentTime);
+      active.gainNode.gain.setValueAtTime(active.gainNode.gain.value, ctx.currentTime);
       active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
       
       // Fade out second oscillator
       active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
-      active.gainNode2.gain.setValueAtTime(currentGain2, ctx.currentTime);
+      active.gainNode2.gain.setValueAtTime(active.gainNode2.gain.value, ctx.currentTime);
       active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
       
       // Stop oscillators after fade out
-      active.oscillator.stop(ctx.currentTime + fadeOutTime + 0.1);
-      active.oscillator2.stop(ctx.currentTime + fadeOutTime + 0.1);
+      active.oscillator.stop(ctx.currentTime + fadeOutTime);
+      active.oscillator2.stop(ctx.currentTime + fadeOutTime);
     } catch (err) {
       // Oscillator might already be stopped
       console.log('Sound cleanup:', err.message);
     }
     
-    // Clean up reference immediately
+    // Clean up reference
     delete activeOscillators.current[cubeIndex];
     
     if (lastHoveredCube.current === cubeIndex) {
@@ -239,8 +240,8 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     attenuationDistance: { value: 0.5, min: 0, max: 10, step: 0.01 },
     attenuationColor: "#ffffff",
     color: "#ffffff",
-    samples: { value: 6, min: 1, max: 32, step: 1 },
-    resolution: { value: 1024, min: 256, max: 2048, step: 256 },
+    samples: { value: 6, min: 1, max: 32, step: 1 }, // Reduced from 10 to 6
+    resolution: { value: 1024, min: 256, max: 2048, step: 256 }, // Reduced from 2048 to 1024
     backside: false,
   });
 
@@ -258,7 +259,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const spacing = 1.05;
   const cubeSize = 0.95;
   const radius = 0.08;
-  const smoothness = 2;
+  const smoothness = 2; // Reduced from 4 to 2 for better performance
 
   useEffect(() => {
     let cubeIndex = 0;
@@ -641,38 +642,41 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     let animationFrameId = null;
 
     function handleWheel(e) {
+      // Calculate target progress from wheel
       const delta = e.deltaY * 0.0025;
       targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
       
+      // Start smooth animation loop if not already running
       if (!animationFrameId) {
         animationFrameId = requestAnimationFrame(smoothUpdate);
       }
     }
 
     function handleKeyDown(e) {
+      // Handle arrow keys (works on Vercel direct)
       if (e.key === 'ArrowDown') {
-        const delta = 0.1;
+        const delta = 0.1; // 30% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'ArrowUp') {
-        const delta = -0.1;
+        const delta = -0.1; // 30% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageDown') {
-        const delta = 0.8;
+        const delta = 0.8; // 80% per page down
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageUp') {
-        const delta = -0.8;
+        const delta = -0.8; // 80% per page up
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
@@ -682,30 +686,32 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     }
 
     function handleMessage(event) {
+      // Listen for messages from parent (Framer)
       if (event.data && event.data.type === 'keyboard') {
+        // Keyboard event from parent
         if (event.data.key === 'ArrowDown') {
-          const delta = 0.45;
+          const delta = 0.45; // 45% per arrow key
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(smoothUpdate);
           }
         } else if (event.data.key === 'ArrowUp') {
-          const delta = -0.45;
+          const delta = -0.45; // 45% per arrow key
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(smoothUpdate);
           }
         } else if (event.data.key === 'PageDown') {
-          const delta = 0.9;
+          const delta = 0.9; // 90% per page down
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(smoothUpdate);
           }
         } else if (event.data.key === 'PageUp') {
-          const delta = -0.9;
+          const delta = -0.9; // 90% per page up
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
@@ -713,6 +719,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
           }
         }
       } else if (event.data && typeof event.data.scrollProgress === 'number') {
+        // Scroll progress from parent
         targetProgress = event.data.scrollProgress;
         
         if (!animationFrameId) {
@@ -722,15 +729,21 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     }
 
     function smoothUpdate() {
+      // Fast interpolation for smooth animation without lag
       const speed = 0.2;
       const diff = targetProgress - progress.value;
       
+      // Move towards target
       progress.value += diff * speed;
+      
+      // Update explosion
       updateDisintegration(progress.value);
       
+      // Continue animating if there's still movement
       if (Math.abs(diff) > 0.001) {
         animationFrameId = requestAnimationFrame(smoothUpdate);
       } else {
+        // Snap to target when close enough
         progress.value = targetProgress;
         updateDisintegration(progress.value);
         animationFrameId = null;
@@ -753,6 +766,8 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
         }
 
         takeSnapshot();
+        
+        // IMPORTANT: Set explosion progress immediately so it shows on first key press
         setExplosionProgress(progressValue);
       }
 
@@ -779,7 +794,10 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
       canvas.addEventListener("wheel", handleWheel, { passive: true });
     }
     
+    // Listen for keyboard events (works when directly on Vercel)
     window.addEventListener("keydown", handleKeyDown);
+    
+    // Listen for messages from parent (works in Framer iframe)
     window.addEventListener("message", handleMessage);
 
     return () => {
@@ -970,13 +988,13 @@ export default function App() {
         gl={{ 
           alpha: true, 
           premultipliedAlpha: false,
-          antialias: false,
+          antialias: false, // Disable for performance
           powerPreference: "high-performance",
           stencil: false,
           depth: true
         }}
-        dpr={[1, 1.5]}
-        performance={{ min: 0.5 }}
+        dpr={[1, 1.5]} // Limit pixel ratio for performance
+        performance={{ min: 0.5 }} // Allow framerate to drop if needed
         style={{ background: "transparent" }}
       >
         <ambientLight intensity={Math.PI} />
