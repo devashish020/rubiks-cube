@@ -83,10 +83,15 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
 
   // Play soft piano sound on hover
   const playSound = (cubeIndex) => {
-    if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
+    if (!audioContextRef.current) return;
     
-    // Stop any existing sound for this cube first
-    stopSound(cubeIndex);
+    // IMPORTANT: Stop ALL existing sounds first to prevent volume accumulation
+    Object.keys(activeOscillators.current).forEach(key => {
+      stopSound(parseInt(key));
+    });
+    
+    // Don't retrigger same cube immediately
+    if (lastHoveredCube.current === cubeIndex) return;
     
     lastHoveredCube.current = cubeIndex;
     
@@ -98,19 +103,19 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     oscillator.type = 'sine'; // Pure, soft tone
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control - VERY LOW volume
+    // Create gain node for volume control - EXTREMELY LOW volume
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
-    gainNode.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 0.1); // Very soft fade in
+    gainNode.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 0.15); // Very slow, gentle fade in
     
-    // Add subtle harmonic for piano richness (very minimal)
+    // Add subtle harmonic for piano richness (minimal)
     const oscillator2 = ctx.createOscillator();
     oscillator2.type = 'sine';
     oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
     
     const gainNode2 = ctx.createGain();
     gainNode2.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode2.gain.linearRampToValueAtTime(0.008, ctx.currentTime + 0.1); // Barely audible harmonic
+    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.15); // Extremely subtle harmonic
     
     // Connect nodes
     oscillator.connect(gainNode);
@@ -138,31 +143,38 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     if (!active || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const fadeOutTime = 0.7; // Long, smooth piano decay
+    const fadeOutTime = 0.3; // Faster fade to prevent overlaps
     
     try {
+      // Get current gain values
+      const currentGain1 = active.gainNode.gain.value;
+      const currentGain2 = active.gainNode2.gain.value;
+      
       // Fade out main oscillator
       active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
-      active.gainNode.gain.setValueAtTime(active.gainNode.gain.value, ctx.currentTime);
+      active.gainNode.gain.setValueAtTime(currentGain1, ctx.currentTime);
       active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
       
-      // Fade out second oscillator (harmonic fades slightly faster)
+      // Fade out second oscillator
       active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
-      active.gainNode2.gain.setValueAtTime(active.gainNode2.gain.value, ctx.currentTime);
-      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime * 0.85);
+      active.gainNode2.gain.setValueAtTime(currentGain2, ctx.currentTime);
+      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
       
       // Stop oscillators after fade out
-      active.oscillator.stop(ctx.currentTime + fadeOutTime);
-      active.oscillator2.stop(ctx.currentTime + fadeOutTime);
+      active.oscillator.stop(ctx.currentTime + fadeOutTime + 0.1);
+      active.oscillator2.stop(ctx.currentTime + fadeOutTime + 0.1);
     } catch (err) {
       // Oscillator might already be stopped
       console.log('Sound cleanup:', err.message);
     }
     
-    // Clean up reference
+    // Clean up reference immediately
     delete activeOscillators.current[cubeIndex];
     
     if (lastHoveredCube.current === cubeIndex) {
+      lastHoveredCube.current = null;
+    }
+  };
       lastHoveredCube.current = null;
     }
   };
