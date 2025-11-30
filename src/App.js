@@ -486,13 +486,34 @@ function RubiksCube({ onHoverChange }) {
     let animationFrameId = null;
 
     function handleWheel(e) {
-      // Calculate target progress
+      // Calculate target progress from wheel
       const delta = e.deltaY * 0.003;
       targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
       
       // Start smooth animation loop if not already running
       if (!animationFrameId) {
         animationFrameId = requestAnimationFrame(smoothUpdate);
+      }
+    }
+
+    function handleKeyDown(e) {
+      // Handle arrow keys
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        // Down arrow = explode (same as scrolling down)
+        const delta = 0.05; // Adjust sensitivity for keyboard
+        targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+        
+        if (!animationFrameId) {
+          animationFrameId = requestAnimationFrame(smoothUpdate);
+        }
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        // Up arrow = reassemble (same as scrolling up)
+        const delta = -0.05; // Negative for going back
+        targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
+        
+        if (!animationFrameId) {
+          animationFrameId = requestAnimationFrame(smoothUpdate);
+        }
       }
     }
 
@@ -558,11 +579,15 @@ function RubiksCube({ onHoverChange }) {
     if (canvas) {
       canvas.addEventListener("wheel", handleWheel, { passive: true });
     }
+    
+    // Add keyboard event listeners
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       if (canvas) {
         canvas.removeEventListener("wheel", handleWheel);
       }
+      window.removeEventListener("keydown", handleKeyDown);
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
@@ -695,7 +720,7 @@ function RubiksCube({ onHoverChange }) {
                 ) : (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color("#f0f0f0")}
+                    background={new THREE.Color("#FFFFFF")}
                   />
                 )}
               </RoundedBox>
