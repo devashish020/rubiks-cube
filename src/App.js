@@ -29,21 +29,14 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
   
-  // Simple audio for harp-like tones
+  // Audio context for hover sounds
   const audioContextRef = useRef(null);
-  const currentSound = useRef(null);
+  const lastHoveredCube = useRef(null);
+  const activeOscillators = useRef({}); // Track active sounds per cube
 
-  // Initialize audio on first interaction
+  // Initialize audio context
   useEffect(() => {
-    const initAudio = () => {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-    };
-    
-    window.addEventListener('click', initAudio, { once: true });
-    window.addEventListener('touchstart', initAudio, { once: true });
-    
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
@@ -51,104 +44,133 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     };
   }, []);
 
-  // Harp uses pentatonic scale - sounds naturally harmonious and soothing
-  const getHarpFrequency = (index) => {
-    // Pentatonic scale (no harsh dissonance) across 3 octaves
-    const harpNotes = [
+  // Harp note frequencies - Pentatonic scale (LOW and MID range only)
+  const getNoteFrequency = (index) => {
+    // Pentatonic scale (C, D, E, G, A) - only low and mid range for soothing sound
+    const harpFrequencies = [
+      // Low range (warm, deep)
+      130.81, // C3
+      146.83, // D3
+      164.81, // E3
+      196.00, // G3
+      220.00, // A3
+      
+      // Mid-low range
       261.63, // C4
       293.66, // D4
       329.63, // E4
       392.00, // G4
       440.00, // A4
+      
+      // Mid range (sweet spot)
+      523.25, // C5
+      587.33, // D5
+      659.25, // E5
+      783.99, // G5
+      880.00, // A5
+      
+      // Mid-high range (gentle, not too bright)
+      1046.50, // C6
+      1174.66, // D6
+      1318.51, // E6
+      1567.98, // G6
+      1760.00, // A6
+      
+      // Fill remaining slots with mid range repetition
       523.25, // C5
       587.33, // D5
       659.25, // E5
       783.99, // G5
       880.00, // A5
       1046.50, // C6
-      1174.66, // D6
-      1318.51, // E6
-      1567.98, // G6
-      1760.00, // A6
-      2093.00, // C7
-      2349.32, // D7
-      2637.02, // E7
-      3135.96, // G7
-      3520.00, // A7
-      // Fill remaining with lower octave repetition
-      130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66
     ];
-    return harpNotes[index % 27];
+    return harpFrequencies[index % 27];
   };
 
-  // Play harp-like tone
-  const playTone = (cubeIndex) => {
-    if (!audioContextRef.current) return;
+  // Play harp sound on hover
+  const playSound = (cubeIndex) => {
+    if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
     
-    // Stop any currently playing sound first
-    stopCurrentSound();
+    // Stop any existing sound for this cube first
+    stopSound(cubeIndex);
+    
+    lastHoveredCube.current = cubeIndex;
     
     const ctx = audioContextRef.current;
-    const frequency = getHarpFrequency(cubeIndex);
+    const frequency = getNoteFrequency(cubeIndex);
     
-    // Create oscillator with triangle wave (softer than sine, harp-like)
+    // Create oscillator (main tone) - triangle wave for harp-like warmth
     const oscillator = ctx.createOscillator();
-    oscillator.type = 'triangle'; // Warmer, harp-like tone
-    oscillator.frequency.value = frequency;
+    oscillator.type = 'triangle'; // Warmer, harp-like sound
+    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Volume control - very soft and gentle
+    // Create gain node for volume control
     const gainNode = ctx.createGain();
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.08); // Gentle fade in
+    gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
+    gainNode.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.08); // Gentle fade in
     
-    // Add subtle harmonic for richness (like harp overtones)
-    const harmonic = ctx.createOscillator();
-    harmonic.type = 'sine';
-    harmonic.frequency.value = frequency * 2; // One octave higher
+    // Add subtle harmonic for harp shimmer
+    const oscillator2 = ctx.createOscillator();
+    oscillator2.type = 'sine'; // Pure harmonic
+    oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
     
-    const harmonicGain = ctx.createGain();
-    harmonicGain.gain.setValueAtTime(0, ctx.currentTime);
-    harmonicGain.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.08); // Very subtle
+    const gainNode2 = ctx.createGain();
+    gainNode2.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode2.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 0.08); // Very subtle sparkle
     
-    // Connect
+    // Connect nodes
     oscillator.connect(gainNode);
-    harmonic.connect(harmonicGain);
+    oscillator2.connect(gainNode2);
     gainNode.connect(ctx.destination);
-    harmonicGain.connect(ctx.destination);
+    gainNode2.connect(ctx.destination);
     
-    // Start
+    // Start oscillators
     oscillator.start(ctx.currentTime);
-    harmonic.start(ctx.currentTime);
+    oscillator2.start(ctx.currentTime);
     
-    // Store reference
-    currentSound.current = { oscillator, harmonic, gainNode, harmonicGain };
+    // Store references for cleanup
+    activeOscillators.current[cubeIndex] = {
+      oscillator,
+      oscillator2,
+      gainNode,
+      gainNode2,
+      startTime: ctx.currentTime
+    };
   };
 
-  // Stop current sound with smooth harp-like decay
-  const stopCurrentSound = () => {
-    if (!currentSound.current || !audioContextRef.current) return;
+  // Stop sound with gradual fade out (harp-like decay)
+  const stopSound = (cubeIndex) => {
+    const active = activeOscillators.current[cubeIndex];
+    if (!active || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const { oscillator, harmonic, gainNode, harmonicGain } = currentSound.current;
+    const fadeOutTime = 0.6; // Longer fade for harp-like sustain
     
     try {
-      // Long, gentle fade out (like harp string dampening)
-      gainNode.gain.cancelScheduledValues(ctx.currentTime);
-      gainNode.gain.setValueAtTime(gainNode.gain.value, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+      // Fade out main oscillator
+      active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
+      active.gainNode.gain.setValueAtTime(active.gainNode.gain.value, ctx.currentTime);
+      active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
       
-      harmonicGain.gain.cancelScheduledValues(ctx.currentTime);
-      harmonicGain.gain.setValueAtTime(harmonicGain.gain.value, ctx.currentTime);
-      harmonicGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+      // Fade out second oscillator (harmonic fades slightly faster)
+      active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
+      active.gainNode2.gain.setValueAtTime(active.gainNode2.gain.value, ctx.currentTime);
+      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime * 0.8);
       
-      // Stop after fade
-      oscillator.stop(ctx.currentTime + 0.6);
-      harmonic.stop(ctx.currentTime + 0.5);
-    } catch (e) {
-      // Already stopped
+      // Stop oscillators after fade out
+      active.oscillator.stop(ctx.currentTime + fadeOutTime);
+      active.oscillator2.stop(ctx.currentTime + fadeOutTime);
+    } catch (err) {
+      // Oscillator might already be stopped
+      console.log('Sound cleanup:', err.message);
     }
     
-    currentSound.current = null;
+    // Clean up reference
+    delete activeOscillators.current[cubeIndex];
+    
+    if (lastHoveredCube.current === cubeIndex) {
+      lastHoveredCube.current = null;
+    }
   };
 
   // Notify parent when explosion state changes
@@ -871,9 +893,9 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
             {isCenter ? (
               <mesh 
                 castShadow 
-                receiveShadow
-                onPointerEnter={() => playTone(idx)}
-                onPointerLeave={stopCurrentSound}
+                receiveShadow 
+                onPointerEnter={() => playSound(idx)}
+                onPointerLeave={() => stopSound(idx)}
               >
                 <primitive object={centerGeometry} attach="geometry" />
                 <meshStandardMaterial
@@ -899,8 +921,8 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
                 smoothness={smoothness}
                 castShadow
                 receiveShadow
-                onPointerEnter={() => playTone(idx)}
-                onPointerLeave={stopCurrentSound}
+                onPointerEnter={() => playSound(idx)}
+                onPointerLeave={() => stopSound(idx)}
               >
                 {isGradientCube ? (
                   <MeshTransmissionMaterial
