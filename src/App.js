@@ -850,7 +850,7 @@ export default function App() {
             opacity={0.35}
             scale={10}
             blur={1.5}
-            far={3}
+            far={4}
             resolution={256}
             //frames={2}
           />
