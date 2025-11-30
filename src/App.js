@@ -29,7 +29,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
   
-  // Simple audio for Nokia-style tones
+  // Simple audio for harp-like tones
   const audioContextRef = useRef(null);
   const currentSound = useRef(null);
 
@@ -51,19 +51,37 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     };
   }, []);
 
-  // Get frequency for each cube (simple scale)
-  const getNoteFrequency = (index) => {
-    // Simple pentatonic scale (like phone tones) - sounds pleasant
-    const notes = [
-      262, 294, 330, 349, 392, 440, 494,  // C major scale
-      523, 587, 659, 698, 784, 880, 988,  // Next octave
-      1047, 1175, 1319, 1397, 1568, 1760, 1976,  // Higher octave
-      2093, 2349, 2637, 2794, 3136, 3520  // Highest notes
+  // Harp uses pentatonic scale - sounds naturally harmonious and soothing
+  const getHarpFrequency = (index) => {
+    // Pentatonic scale (no harsh dissonance) across 3 octaves
+    const harpNotes = [
+      261.63, // C4
+      293.66, // D4
+      329.63, // E4
+      392.00, // G4
+      440.00, // A4
+      523.25, // C5
+      587.33, // D5
+      659.25, // E5
+      783.99, // G5
+      880.00, // A5
+      1046.50, // C6
+      1174.66, // D6
+      1318.51, // E6
+      1567.98, // G6
+      1760.00, // A6
+      2093.00, // C7
+      2349.32, // D7
+      2637.02, // E7
+      3135.96, // G7
+      3520.00, // A7
+      // Fill remaining with lower octave repetition
+      130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66
     ];
-    return notes[index % 27];
+    return harpNotes[index % 27];
   };
 
-  // Play simple tone (Nokia style)
+  // Play harp-like tone
   const playTone = (cubeIndex) => {
     if (!audioContextRef.current) return;
     
@@ -71,44 +89,61 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     stopCurrentSound();
     
     const ctx = audioContextRef.current;
-    const frequency = getNoteFrequency(cubeIndex);
+    const frequency = getHarpFrequency(cubeIndex);
     
-    // Create simple oscillator
+    // Create oscillator with triangle wave (softer than sine, harp-like)
     const oscillator = ctx.createOscillator();
-    oscillator.type = 'sine'; // Pure, soft tone
+    oscillator.type = 'triangle'; // Warmer, harp-like tone
     oscillator.frequency.value = frequency;
     
-    // Volume control - 15% volume with smooth fade
+    // Volume control - very soft and gentle
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05); // Quick fade in
+    gainNode.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.08); // Gentle fade in
+    
+    // Add subtle harmonic for richness (like harp overtones)
+    const harmonic = ctx.createOscillator();
+    harmonic.type = 'sine';
+    harmonic.frequency.value = frequency * 2; // One octave higher
+    
+    const harmonicGain = ctx.createGain();
+    harmonicGain.gain.setValueAtTime(0, ctx.currentTime);
+    harmonicGain.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.08); // Very subtle
     
     // Connect
     oscillator.connect(gainNode);
+    harmonic.connect(harmonicGain);
     gainNode.connect(ctx.destination);
+    harmonicGain.connect(ctx.destination);
     
     // Start
     oscillator.start(ctx.currentTime);
+    harmonic.start(ctx.currentTime);
     
     // Store reference
-    currentSound.current = { oscillator, gainNode };
+    currentSound.current = { oscillator, harmonic, gainNode, harmonicGain };
   };
 
-  // Stop current sound with smooth fade
+  // Stop current sound with smooth harp-like decay
   const stopCurrentSound = () => {
     if (!currentSound.current || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const { oscillator, gainNode } = currentSound.current;
+    const { oscillator, harmonic, gainNode, harmonicGain } = currentSound.current;
     
     try {
-      // Smooth fade out over 300ms
+      // Long, gentle fade out (like harp string dampening)
       gainNode.gain.cancelScheduledValues(ctx.currentTime);
       gainNode.gain.setValueAtTime(gainNode.gain.value, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+      
+      harmonicGain.gain.cancelScheduledValues(ctx.currentTime);
+      harmonicGain.gain.setValueAtTime(harmonicGain.gain.value, ctx.currentTime);
+      harmonicGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
       
       // Stop after fade
-      oscillator.stop(ctx.currentTime + 0.3);
+      oscillator.stop(ctx.currentTime + 0.6);
+      harmonic.stop(ctx.currentTime + 0.5);
     } catch (e) {
       // Already stopped
     }
