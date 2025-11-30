@@ -782,7 +782,7 @@ function RubiksCube({ onHoverChange }) {
                 ) : (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color("#f0f0f0")}
+                    background={new THREE.Color("#ffffff")}
                   />
                 )}
               </RoundedBox>
