@@ -28,6 +28,103 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const { camera, gl } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
+  
+  // Audio context for hover sounds
+  const audioContextRef = useRef(null);
+  const lastHoveredCube = useRef(null);
+
+  // Initialize audio context
+  useEffect(() => {
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
+
+  // Piano note frequencies (C major scale across 3 octaves for 27 cubes)
+  const getNoteFrequency = (index) => {
+    // C major scale notes
+    const baseFrequencies = [
+      261.63, // C4
+      293.66, // D4
+      329.63, // E4
+      349.23, // F4
+      392.00, // G4
+      440.00, // A4
+      493.88, // B4
+      523.25, // C5
+      587.33, // D5
+      659.25, // E5
+      698.46, // F5
+      783.99, // G5
+      880.00, // A5
+      987.77, // B5
+      1046.50, // C6
+      1174.66, // D6
+      1318.51, // E6
+      1396.91, // F6
+      1567.98, // G6
+      1760.00, // A6
+      1975.53, // B6
+      2093.00, // C7
+      2349.32, // D7
+      2637.02, // E7
+      2793.83, // F7
+      3135.96, // G7
+      3520.00, // A7
+    ];
+    return baseFrequencies[index % 27];
+  };
+
+  // Play piano sound on hover
+  const playSound = (cubeIndex) => {
+    if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
+    
+    lastHoveredCube.current = cubeIndex;
+    
+    const ctx = audioContextRef.current;
+    const frequency = getNoteFrequency(cubeIndex);
+    
+    // Create oscillator (main tone)
+    const oscillator = ctx.createOscillator();
+    oscillator.type = 'sine'; // Smooth piano-like sound
+    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+    
+    // Create gain node for volume control and fade out
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0.15, ctx.currentTime); // Soft volume
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8); // Fade out
+    
+    // Add subtle reverb/richness with second oscillator
+    const oscillator2 = ctx.createOscillator();
+    oscillator2.type = 'sine';
+    oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
+    
+    const gainNode2 = ctx.createGain();
+    gainNode2.gain.setValueAtTime(0.05, ctx.currentTime); // Very subtle
+    gainNode2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+    
+    // Connect nodes
+    oscillator.connect(gainNode);
+    oscillator2.connect(gainNode2);
+    gainNode.connect(ctx.destination);
+    gainNode2.connect(ctx.destination);
+    
+    // Start and stop
+    oscillator.start(ctx.currentTime);
+    oscillator2.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.8);
+    oscillator2.stop(ctx.currentTime + 0.6);
+    
+    // Reset last hovered after a short delay
+    setTimeout(() => {
+      if (lastHoveredCube.current === cubeIndex) {
+        lastHoveredCube.current = null;
+      }
+    }, 100);
+  };
 
   // Notify parent when explosion state changes
   useEffect(() => {
@@ -747,7 +844,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
             ref={(el) => (cubesRef.current[idx] = el)}
           >
             {isCenter ? (
-              <mesh castShadow receiveShadow>
+              <mesh castShadow receiveShadow onPointerEnter={() => playSound(idx)}>
                 <primitive object={centerGeometry} attach="geometry" />
                 <meshStandardMaterial
                   emissive="#ffffff"
@@ -772,6 +869,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
                 smoothness={smoothness}
                 castShadow
                 receiveShadow
+                onPointerEnter={() => playSound(idx)}
               >
                 {isGradientCube ? (
                   <MeshTransmissionMaterial
