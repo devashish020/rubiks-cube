@@ -175,9 +175,6 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
       lastHoveredCube.current = null;
     }
   };
-      lastHoveredCube.current = null;
-    }
-  };
 
   // Notify parent when explosion state changes
   useEffect(() => {
@@ -242,8 +239,8 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     attenuationDistance: { value: 0.5, min: 0, max: 10, step: 0.01 },
     attenuationColor: "#ffffff",
     color: "#ffffff",
-    samples: { value: 6, min: 1, max: 32, step: 1 }, // Reduced from 10 to 6
-    resolution: { value: 1024, min: 256, max: 2048, step: 256 }, // Reduced from 2048 to 1024
+    samples: { value: 6, min: 1, max: 32, step: 1 },
+    resolution: { value: 1024, min: 256, max: 2048, step: 256 },
     backside: false,
   });
 
@@ -261,7 +258,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const spacing = 1.05;
   const cubeSize = 0.95;
   const radius = 0.08;
-  const smoothness = 2; // Reduced from 4 to 2 for better performance
+  const smoothness = 2;
 
   useEffect(() => {
     let cubeIndex = 0;
@@ -644,41 +641,38 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     let animationFrameId = null;
 
     function handleWheel(e) {
-      // Calculate target progress from wheel
       const delta = e.deltaY * 0.0025;
       targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
       
-      // Start smooth animation loop if not already running
       if (!animationFrameId) {
         animationFrameId = requestAnimationFrame(smoothUpdate);
       }
     }
 
     function handleKeyDown(e) {
-      // Handle arrow keys (works on Vercel direct)
       if (e.key === 'ArrowDown') {
-        const delta = 0.1; // 30% per arrow key
+        const delta = 0.1;
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'ArrowUp') {
-        const delta = -0.1; // 30% per arrow key
+        const delta = -0.1;
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageDown') {
-        const delta = 0.8; // 80% per page down
+        const delta = 0.8;
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageUp') {
-        const delta = -0.8; // 80% per page up
+        const delta = -0.8;
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
@@ -688,32 +682,30 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     }
 
     function handleMessage(event) {
-      // Listen for messages from parent (Framer)
       if (event.data && event.data.type === 'keyboard') {
-        // Keyboard event from parent
         if (event.data.key === 'ArrowDown') {
-          const delta = 0.45; // 45% per arrow key
+          const delta = 0.45;
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(smoothUpdate);
           }
         } else if (event.data.key === 'ArrowUp') {
-          const delta = -0.45; // 45% per arrow key
+          const delta = -0.45;
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(smoothUpdate);
           }
         } else if (event.data.key === 'PageDown') {
-          const delta = 0.9; // 90% per page down
+          const delta = 0.9;
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(smoothUpdate);
           }
         } else if (event.data.key === 'PageUp') {
-          const delta = -0.9; // 90% per page up
+          const delta = -0.9;
           targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
           
           if (!animationFrameId) {
@@ -721,7 +713,6 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
           }
         }
       } else if (event.data && typeof event.data.scrollProgress === 'number') {
-        // Scroll progress from parent
         targetProgress = event.data.scrollProgress;
         
         if (!animationFrameId) {
@@ -731,21 +722,15 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     }
 
     function smoothUpdate() {
-      // Fast interpolation for smooth animation without lag
       const speed = 0.2;
       const diff = targetProgress - progress.value;
       
-      // Move towards target
       progress.value += diff * speed;
-      
-      // Update explosion
       updateDisintegration(progress.value);
       
-      // Continue animating if there's still movement
       if (Math.abs(diff) > 0.001) {
         animationFrameId = requestAnimationFrame(smoothUpdate);
       } else {
-        // Snap to target when close enough
         progress.value = targetProgress;
         updateDisintegration(progress.value);
         animationFrameId = null;
@@ -768,8 +753,6 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
         }
 
         takeSnapshot();
-        
-        // IMPORTANT: Set explosion progress immediately so it shows on first key press
         setExplosionProgress(progressValue);
       }
 
@@ -796,10 +779,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
       canvas.addEventListener("wheel", handleWheel, { passive: true });
     }
     
-    // Listen for keyboard events (works when directly on Vercel)
     window.addEventListener("keydown", handleKeyDown);
-    
-    // Listen for messages from parent (works in Framer iframe)
     window.addEventListener("message", handleMessage);
 
     return () => {
@@ -990,13 +970,13 @@ export default function App() {
         gl={{ 
           alpha: true, 
           premultipliedAlpha: false,
-          antialias: false, // Disable for performance
+          antialias: false,
           powerPreference: "high-performance",
           stencil: false,
           depth: true
         }}
-        dpr={[1, 1.5]} // Limit pixel ratio for performance
-        performance={{ min: 0.5 }} // Allow framerate to drop if needed
+        dpr={[1, 1.5]}
+        performance={{ min: 0.5 }}
         style={{ background: "transparent" }}
       >
         <ambientLight intensity={Math.PI} />
