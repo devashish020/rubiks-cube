@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   MeshTransmissionMaterial,
   Environment,
+  ContactShadows,
   GradientTexture,
   RoundedBox,
 } from "@react-three/drei";
@@ -782,7 +783,7 @@ function RubiksCube({ onHoverChange }) {
                 ) : (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color("#ffffff")}
+                    background={new THREE.Color("#f0f0f0")}
                   />
                 )}
               </RoundedBox>
@@ -819,6 +820,7 @@ export default function App() {
   return (
     <div style={{ width: "100vw", height: "100vh", background: "transparent" }}>
       <Canvas 
+        shadows
         camera={{ position: [8, 8, 8], fov: 50 }}
         gl={{ 
           alpha: true, 
@@ -834,6 +836,13 @@ export default function App() {
       >
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} />
+        <ContactShadows
+          position={[0, -2, 0]}
+          opacity={0.4}
+          scale={10}
+          blur={2}
+          far={4}
+        />
         <Environment
           files="https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr"
           background={false}
