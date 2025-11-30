@@ -847,12 +847,12 @@ export default function App() {
         {!isExploding && (
           <ContactShadows
             position={[0, -2, 0]}
-            opacity={0.25}
+            opacity={0.35}
             scale={10}
             blur={1.5}
-            far={2.5}
+            far={3}
             resolution={256}
-            frames={1}
+            frames={2}
           />
         )}
         <Environment
