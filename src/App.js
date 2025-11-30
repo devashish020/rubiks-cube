@@ -499,28 +499,28 @@ function RubiksCube({ onHoverChange }) {
     function handleKeyDown(e) {
       // Handle arrow keys (works on Vercel direct)
       if (e.key === 'ArrowDown') {
-        const delta = 0.45; // 45% per arrow key
+        const delta = 0.3; // 45% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'ArrowUp') {
-        const delta = -0.45; // 45% per arrow key
+        const delta = -0.3; // 45% per arrow key
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageDown') {
-        const delta = 0.9; // 90% per page down
+        const delta = 0.8; // 90% per page down
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
           animationFrameId = requestAnimationFrame(smoothUpdate);
         }
       } else if (e.key === 'PageUp') {
-        const delta = -0.9; // 90% per page up
+        const delta = -0.8; // 90% per page up
         targetProgress = Math.max(0, Math.min(1, targetProgress + delta));
         
         if (!animationFrameId) {
@@ -765,7 +765,7 @@ function RubiksCube({ onHoverChange }) {
                 {isGradientCube ? (
                   <MeshTransmissionMaterial
                     {...glassConfig}
-                    background={new THREE.Color("#f0f0f0")}
+                    background={new THREE.Color("#ffffff")}
                   >
                     <GradientTexture
                       stops={[0, 1]}
