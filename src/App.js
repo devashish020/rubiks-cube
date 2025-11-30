@@ -29,176 +29,91 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
   
-  // Audio context for hover sounds
+  // Simple audio for Nokia-style tones
   const audioContextRef = useRef(null);
-  const activeOscillators = useRef({}); // Track active sounds per cube
-  const audioInitialized = useRef(false);
-  const globalGainNode = useRef(null);
-  const cooldownTimers = useRef({});
+  const currentSound = useRef(null);
 
-  // Initialize audio context
-  const initAudio = () => {
-    if (!audioInitialized.current) {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        audioContextRef.current = ctx;
-        
-        // Create global gain node for master volume control
-        globalGainNode.current = ctx.createGain();
-        globalGainNode.current.gain.setValueAtTime(0.012, ctx.currentTime); // Master volume
-        globalGainNode.current.connect(ctx.destination);
-        
-        audioInitialized.current = true;
-        console.log('🔊 Audio enabled');
-        return true;
-      } catch (err) {
-        console.error('Audio initialization failed:', err);
-        return false;
-      }
-    }
-    return true;
-  };
-
+  // Initialize audio on first interaction
   useEffect(() => {
-    // Try to auto-start with a simulated user gesture
-    const autoStart = async () => {
-      // Wait a tiny bit for page to settle
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Try to initialize
-      if (initAudio()) {
-        // Resume context if suspended (common in some browsers)
-        if (audioContextRef.current?.state === 'suspended') {
-          try {
-            await audioContextRef.current.resume();
-            console.log('🔊 Audio context resumed');
-          } catch (err) {
-            console.log('Will enable on first interaction');
-          }
-        }
+    const initAudio = () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
       }
     };
     
-    autoStart();
-
-    // Backup: listen for any interaction
-    const enableOnInteraction = async () => {
-      if (initAudio() && audioContextRef.current?.state === 'suspended') {
-        await audioContextRef.current.resume();
-      }
-    };
-
-    document.addEventListener('click', enableOnInteraction, { once: true, capture: true });
-    document.addEventListener('touchstart', enableOnInteraction, { once: true, capture: true });
-    document.addEventListener('keydown', enableOnInteraction, { once: true, capture: true });
-
+    window.addEventListener('click', initAudio, { once: true });
+    window.addEventListener('touchstart', initAudio, { once: true });
+    
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
-      // Clean up all timers
-      Object.values(cooldownTimers.current).forEach(timer => clearTimeout(timer));
     };
   }, []);
 
-  // Piano note frequencies (C major scale across 3 octaves for 27 cubes)
+  // Get frequency for each cube (simple scale)
   const getNoteFrequency = (index) => {
-    const baseFrequencies = [
-      261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88,
-      523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77,
-      1046.50, 1174.66, 1318.51, 1396.91, 1567.98, 1760.00, 1975.53,
-      2093.00, 2349.32, 2637.02, 2793.83, 3135.96, 3520.00
+    // Simple pentatonic scale (like phone tones) - sounds pleasant
+    const notes = [
+      262, 294, 330, 349, 392, 440, 494,  // C major scale
+      523, 587, 659, 698, 784, 880, 988,  // Next octave
+      1047, 1175, 1319, 1397, 1568, 1760, 1976,  // Higher octave
+      2093, 2349, 2637, 2794, 3136, 3520  // Highest notes
     ];
-    return baseFrequencies[index % 27];
+    return notes[index % 27];
   };
 
-  // Play piano sound on hover with strict anti-overlap
-  const playSound = async (cubeIndex) => {
-    // Try to initialize/resume audio
-    if (!audioContextRef.current) {
-      initAudio();
-    }
+  // Play simple tone (Nokia style)
+  const playTone = (cubeIndex) => {
+    if (!audioContextRef.current) return;
     
-    if (!audioContextRef.current || !globalGainNode.current) return;
-    
-    // Resume if suspended
-    if (audioContextRef.current.state === 'suspended') {
-      try {
-        await audioContextRef.current.resume();
-      } catch (err) {
-        return;
-      }
-    }
-    
-    // STRICT: Don't play if in cooldown or already playing
-    if (cooldownTimers.current[cubeIndex] || activeOscillators.current[cubeIndex]) {
-      return;
-    }
-    
-    // Set cooldown immediately to prevent rapid retriggering
-    cooldownTimers.current[cubeIndex] = true;
+    // Stop any currently playing sound first
+    stopCurrentSound();
     
     const ctx = audioContextRef.current;
     const frequency = getNoteFrequency(cubeIndex);
     
-    // Create oscillator
+    // Create simple oscillator
     const oscillator = ctx.createOscillator();
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+    oscillator.type = 'sine'; // Pure, soft tone
+    oscillator.frequency.value = frequency;
     
-    // Local gain for this note (extra control)
-    const localGain = ctx.createGain();
-    localGain.gain.setValueAtTime(0, ctx.currentTime);
-    localGain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.1); // Gentle fade in
+    // Volume control - 15% volume with smooth fade
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05); // Quick fade in
     
-    // Connect: oscillator -> localGain -> globalGain -> destination
-    oscillator.connect(localGain);
-    localGain.connect(globalGainNode.current);
+    // Connect
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
     
     // Start
     oscillator.start(ctx.currentTime);
     
     // Store reference
-    activeOscillators.current[cubeIndex] = {
-      oscillator,
-      localGain,
-      startTime: ctx.currentTime
-    };
+    currentSound.current = { oscillator, gainNode };
   };
 
-  // Stop sound - called when pointer leaves
-  const stopSound = (cubeIndex) => {
-    const active = activeOscillators.current[cubeIndex];
-    if (!active || !audioContextRef.current) {
-      // Clear cooldown even if nothing playing
-      setTimeout(() => {
-        delete cooldownTimers.current[cubeIndex];
-      }, 150);
-      return;
-    }
+  // Stop current sound with smooth fade
+  const stopCurrentSound = () => {
+    if (!currentSound.current || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const fadeOutTime = 0.6; // Long, smooth fade
+    const { oscillator, gainNode } = currentSound.current;
     
     try {
-      const currentGain = active.localGain.gain.value;
+      // Smooth fade out over 300ms
+      gainNode.gain.cancelScheduledValues(ctx.currentTime);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
       
-      // Cancel any scheduled changes and start fresh
-      active.localGain.gain.cancelScheduledValues(ctx.currentTime);
-      active.localGain.gain.setValueAtTime(currentGain, ctx.currentTime);
-      active.localGain.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
-      
-      // Stop oscillator
-      active.oscillator.stop(ctx.currentTime + fadeOutTime);
-    } catch (err) {
+      // Stop after fade
+      oscillator.stop(ctx.currentTime + 0.3);
+    } catch (e) {
       // Already stopped
     }
     
-    // Clean up after fade completes
-    setTimeout(() => {
-      delete activeOscillators.current[cubeIndex];
-      delete cooldownTimers.current[cubeIndex];
-    }, (fadeOutTime * 1000) + 100);
+    currentSound.current = null;
   };
 
   // Notify parent when explosion state changes
@@ -921,9 +836,9 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
             {isCenter ? (
               <mesh 
                 castShadow 
-                receiveShadow 
-                onPointerEnter={() => playSound(idx)}
-                onPointerLeave={() => stopSound(idx)}
+                receiveShadow
+                onPointerEnter={() => playTone(idx)}
+                onPointerLeave={stopCurrentSound}
               >
                 <primitive object={centerGeometry} attach="geometry" />
                 <meshStandardMaterial
@@ -949,8 +864,8 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
                 smoothness={smoothness}
                 castShadow
                 receiveShadow
-                onPointerEnter={() => playSound(idx)}
-                onPointerLeave={() => stopSound(idx)}
+                onPointerEnter={() => playTone(idx)}
+                onPointerLeave={stopCurrentSound}
               >
                 {isGradientCube ? (
                   <MeshTransmissionMaterial
