@@ -56,42 +56,51 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     };
   }, []);
 
-  // Piano note frequencies (C major scale across 3 octaves for 27 cubes)
+  // Handpan note frequencies - D minor pentatonic scale (most common handpan tuning)
   const getNoteFrequency = (index) => {
-    // C major scale notes
-    const baseFrequencies = [
+    // D minor pentatonic scale (D, E, F, A, C) - very meditative and soothing
+    // Handpans typically use lower frequencies for deep, resonant sound
+    const handpanNotes = [
+      // Low range (warm, grounding)
+      146.83, // D3
+      164.81, // E3
+      174.61, // F3
+      220.00, // A3
       261.63, // C4
+      
+      // Mid-low range (rich)
       293.66, // D4
       329.63, // E4
       349.23, // F4
-      392.00, // G4
       440.00, // A4
-      493.88, // B4
       523.25, // C5
+      
+      // Mid range (sweet handpan range)
       587.33, // D5
       659.25, // E5
       698.46, // F5
-      783.99, // G5
       880.00, // A5
-      987.77, // B5
       1046.50, // C6
+      
+      // Mid-high range (bell-like)
       1174.66, // D6
       1318.51, // E6
       1396.91, // F6
-      1567.98, // G6
       1760.00, // A6
-      1975.53, // B6
-      2093.00, // C7
-      2349.32, // D7
-      2637.02, // E7
-      2793.83, // F7
-      3135.96, // G7
-      3520.00, // A7
+      
+      // Repeat lower octaves for remaining cubes
+      146.83, // D3
+      164.81, // E3
+      174.61, // F3
+      220.00, // A3
+      261.63, // C4
+      293.66, // D4
+      329.63, // E4
     ];
-    return baseFrequencies[index % 27];
+    return handpanNotes[index % 27];
   };
 
-  // Play piano sound on hover
+  // Play handpan sound on hover
   const playSound = (cubeIndex) => {
     if (!audioContextRef.current || lastHoveredCube.current === cubeIndex) return;
     
@@ -103,67 +112,90 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     const ctx = audioContextRef.current;
     const frequency = getNoteFrequency(cubeIndex);
     
-    // Create oscillator (main tone)
+    // Create main tone - sine wave for fundamental
     const oscillator = ctx.createOscillator();
-    oscillator.type = 'sine'; // Smooth piano-like sound
+    oscillator.type = 'sine';
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
     
-    // Create gain node for volume control - 20% of previous volume
+    // Handpan volume envelope - quick attack, long sustain
     const gainNode = ctx.createGain();
-    gainNode.gain.setValueAtTime(0, ctx.currentTime); // Start at 0
-    gainNode.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 0.05); // 20% of 0.06
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.02); // Quick attack
+    gainNode.gain.linearRampToValueAtTime(0.015, ctx.currentTime + 0.5); // Slight decay
     
-    // Add subtle reverb/richness with second oscillator
-    const oscillator2 = ctx.createOscillator();
-    oscillator2.type = 'sine';
-    oscillator2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave higher
+    // First harmonic (octave + fifth) - characteristic of handpan
+    const harmonic1 = ctx.createOscillator();
+    harmonic1.type = 'sine';
+    harmonic1.frequency.setValueAtTime(frequency * 1.5, ctx.currentTime); // Perfect fifth
     
-    const gainNode2 = ctx.createGain();
-    gainNode2.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode2.gain.linearRampToValueAtTime(0.004, ctx.currentTime + 0.05); // 20% of 0.02
+    const gain1 = ctx.createGain();
+    gain1.gain.setValueAtTime(0, ctx.currentTime);
+    gain1.gain.linearRampToValueAtTime(0.008, ctx.currentTime + 0.02);
+    gain1.gain.linearRampToValueAtTime(0.006, ctx.currentTime + 0.5);
     
-    // Connect nodes
+    // Second harmonic (two octaves) - adds shimmer
+    const harmonic2 = ctx.createOscillator();
+    harmonic2.type = 'sine';
+    harmonic2.frequency.setValueAtTime(frequency * 2, ctx.currentTime); // Octave
+    
+    const gain2 = ctx.createGain();
+    gain2.gain.setValueAtTime(0, ctx.currentTime);
+    gain2.gain.linearRampToValueAtTime(0.005, ctx.currentTime + 0.02);
+    gain2.gain.linearRampToValueAtTime(0.003, ctx.currentTime + 0.5);
+    
+    // Connect all oscillators
     oscillator.connect(gainNode);
-    oscillator2.connect(gainNode2);
+    harmonic1.connect(gain1);
+    harmonic2.connect(gain2);
     gainNode.connect(ctx.destination);
-    gainNode2.connect(ctx.destination);
+    gain1.connect(ctx.destination);
+    gain2.connect(ctx.destination);
     
-    // Start oscillators
+    // Start all oscillators
     oscillator.start(ctx.currentTime);
-    oscillator2.start(ctx.currentTime);
+    harmonic1.start(ctx.currentTime);
+    harmonic2.start(ctx.currentTime);
     
     // Store references for cleanup
     activeOscillators.current[cubeIndex] = {
       oscillator,
-      oscillator2,
+      harmonic1,
+      harmonic2,
       gainNode,
-      gainNode2,
+      gain1,
+      gain2,
       startTime: ctx.currentTime
     };
   };
 
-  // Stop sound with gradual fade out
+  // Stop handpan sound with long, natural decay
   const stopSound = (cubeIndex) => {
     const active = activeOscillators.current[cubeIndex];
     if (!active || !audioContextRef.current) return;
     
     const ctx = audioContextRef.current;
-    const fadeOutTime = 0.4; // Smooth fade out duration
+    const fadeOutTime = 1.2; // Long sustain like real handpan
     
     try {
-      // Fade out main oscillator
+      // Fade out fundamental
       active.gainNode.gain.cancelScheduledValues(ctx.currentTime);
       active.gainNode.gain.setValueAtTime(active.gainNode.gain.value, ctx.currentTime);
-      active.gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+      active.gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + fadeOutTime);
       
-      // Fade out second oscillator
-      active.gainNode2.gain.cancelScheduledValues(ctx.currentTime);
-      active.gainNode2.gain.setValueAtTime(active.gainNode2.gain.value, ctx.currentTime);
-      active.gainNode2.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeOutTime);
+      // Fade out first harmonic (faster)
+      active.gain1.gain.cancelScheduledValues(ctx.currentTime);
+      active.gain1.gain.setValueAtTime(active.gain1.gain.value, ctx.currentTime);
+      active.gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + fadeOutTime * 0.8);
       
-      // Stop oscillators after fade out
-      active.oscillator.stop(ctx.currentTime + fadeOutTime);
-      active.oscillator2.stop(ctx.currentTime + fadeOutTime);
+      // Fade out second harmonic (fastest - shimmers fade first)
+      active.gain2.gain.cancelScheduledValues(ctx.currentTime);
+      active.gain2.gain.setValueAtTime(active.gain2.gain.value, ctx.currentTime);
+      active.gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + fadeOutTime * 0.6);
+      
+      // Stop all oscillators after fade
+      active.oscillator.stop(ctx.currentTime + fadeOutTime + 0.1);
+      active.harmonic1.stop(ctx.currentTime + fadeOutTime * 0.8 + 0.1);
+      active.harmonic2.stop(ctx.currentTime + fadeOutTime * 0.6 + 0.1);
     } catch (err) {
       // Oscillator might already be stopped
       console.log('Sound cleanup:', err.message);
