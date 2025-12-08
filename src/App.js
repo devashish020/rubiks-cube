@@ -10,7 +10,6 @@ import {
 import { useControls } from "leva";
 import { useRef, useState, useEffect } from "react";
 import gsap from "gsap";
-import Lenis from "@studio-freight/lenis";
 
 function RubiksCube({ onHoverChange, onExplosionChange }) {
   const groupRef = useRef();
@@ -980,38 +979,33 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
 export default function App() {
   const [hoveredCube, setHoveredCube] = useState(null);
   const [isExploding, setIsExploding] = useState(false);
+  const [frameloop, setFrameloop] = useState("always");
 
-  // Initialize Lenis smooth scroll with intensity 10
+  // Detect when user is hovering over the canvas
   useEffect(() => {
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 10, // Intensity 10
-      smoothTouch: false,
-      touchMultiplier: 2,
-      infinite: false,
-    });
+    const handleMouseEnter = () => setFrameloop("always");
+    const handleMouseLeave = () => setFrameloop("demand");
 
-    function raf(time) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
+    const canvas = document.querySelector("canvas");
+    if (canvas) {
+      canvas.addEventListener("mouseenter", handleMouseEnter);
+      canvas.addEventListener("mouseleave", handleMouseLeave);
     }
 
-    requestAnimationFrame(raf);
-
     return () => {
-      lenis.destroy();
+      if (canvas) {
+        canvas.removeEventListener("mouseenter", handleMouseEnter);
+        canvas.removeEventListener("mouseleave", handleMouseLeave);
+      }
     };
   }, []);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "transparent", pointerEvents: "none", touchAction: "pan-y" }}>
+    <div style={{ width: "100vw", height: "100vh", background: "transparent" }}>
       <Canvas 
         shadows
         camera={{ position: [8, 8, 8], fov: 50 }}
+        frameloop={frameloop}
         gl={{ 
           alpha: true, 
           premultipliedAlpha: false,
@@ -1022,9 +1016,7 @@ export default function App() {
         }}
         dpr={[1, 1.5]} // Limit pixel ratio for performance
         performance={{ min: 0.5 }} // Allow framerate to drop if needed
-        style={{ background: "transparent", pointerEvents: "auto", touchAction: "none" }}
-        eventSource={document.getElementById('root')}
-        eventPrefix="client"
+        style={{ background: "transparent" }}
       >
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} onExplosionChange={setIsExploding} />
