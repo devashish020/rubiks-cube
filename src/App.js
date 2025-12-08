@@ -240,7 +240,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     attenuationDistance: { value: 0.5, min: 0, max: 10, step: 0.01 },
     attenuationColor: "#ffffff",
     color: "#ffffff",
-    samples: { value: 2, min: 1, max: 32, step: 1 }, // Reduced to 2 for performance testing
+    samples: { value: 6, min: 1, max: 32, step: 1 }, // Reduced from 10 to 6
     resolution: { value: 1024, min: 256, max: 2048, step: 256 }, // Reduced from 2048 to 1024
     backside: false,
   });
@@ -789,11 +789,10 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
       }
     }
 
-    // TESTING: Wheel listener temporarily disabled to test scroll performance
-    // const canvas = document.querySelector("canvas");
-    // if (canvas) {
-    //   canvas.addEventListener("wheel", handleWheel, { passive: true });
-    // }
+    const canvas = document.querySelector("canvas");
+    if (canvas) {
+      canvas.addEventListener("wheel", handleWheel, { passive: true });
+    }
     
     // Listen for keyboard events (works when directly on Vercel)
     window.addEventListener("keydown", handleKeyDown);
@@ -802,9 +801,9 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     window.addEventListener("message", handleMessage);
 
     return () => {
-      // if (canvas) {
-      //   canvas.removeEventListener("wheel", handleWheel);
-      // }
+      if (canvas) {
+        canvas.removeEventListener("wheel", handleWheel);
+      }
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("message", handleMessage);
       if (animationFrameId) {
@@ -982,7 +981,7 @@ export default function App() {
   const [isExploding, setIsExploding] = useState(false);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "transparent", pointerEvents: "none" }}>
+    <div style={{ width: "100vw", height: "100vh", background: "transparent", pointerEvents: "none", touchAction: "pan-y" }}>
       <Canvas 
         shadows
         camera={{ position: [8, 8, 8], fov: 50 }}
@@ -996,7 +995,9 @@ export default function App() {
         }}
         dpr={[1, 1.5]} // Limit pixel ratio for performance
         performance={{ min: 0.5 }} // Allow framerate to drop if needed
-        style={{ background: "transparent", pointerEvents: "auto" }}
+        style={{ background: "transparent", pointerEvents: "auto", touchAction: "none" }}
+        eventSource={document.getElementById('root')}
+        eventPrefix="client"
       >
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} onExplosionChange={setIsExploding} />
