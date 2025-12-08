@@ -240,7 +240,7 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     attenuationDistance: { value: 0.5, min: 0, max: 10, step: 0.01 },
     attenuationColor: "#ffffff",
     color: "#ffffff",
-    samples: { value: 6, min: 1, max: 32, step: 1 }, // Reduced from 10 to 6
+    samples: { value: 2, min: 1, max: 32, step: 1 }, // Reduced to 2 for performance testing
     resolution: { value: 1024, min: 256, max: 2048, step: 256 }, // Reduced from 2048 to 1024
     backside: false,
   });
