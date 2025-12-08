@@ -10,6 +10,7 @@ import {
 import { useControls } from "leva";
 import { useRef, useState, useEffect } from "react";
 import gsap from "gsap";
+import Lenis from "@studio-freight/lenis";
 
 function RubiksCube({ onHoverChange, onExplosionChange }) {
   const groupRef = useRef();
@@ -979,6 +980,32 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
 export default function App() {
   const [hoveredCube, setHoveredCube] = useState(null);
   const [isExploding, setIsExploding] = useState(false);
+
+  // Initialize Lenis smooth scroll with intensity 10
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 10, // Intensity 10
+      smoothTouch: false,
+      touchMultiplier: 2,
+      infinite: false,
+    });
+
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+
+    requestAnimationFrame(raf);
+
+    return () => {
+      lenis.destroy();
+    };
+  }, []);
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "transparent", pointerEvents: "none", touchAction: "pan-y" }}>
