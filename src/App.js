@@ -789,10 +789,11 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
       }
     }
 
-    const canvas = document.querySelector("canvas");
-    if (canvas) {
-      canvas.addEventListener("wheel", handleWheel, { passive: true });
-    }
+    // TESTING: Wheel listener temporarily disabled to test scroll performance
+    // const canvas = document.querySelector("canvas");
+    // if (canvas) {
+    //   canvas.addEventListener("wheel", handleWheel, { passive: true });
+    // }
     
     // Listen for keyboard events (works when directly on Vercel)
     window.addEventListener("keydown", handleKeyDown);
@@ -801,9 +802,9 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
     window.addEventListener("message", handleMessage);
 
     return () => {
-      if (canvas) {
-        canvas.removeEventListener("wheel", handleWheel);
-      }
+      // if (canvas) {
+      //   canvas.removeEventListener("wheel", handleWheel);
+      // }
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("message", handleMessage);
       if (animationFrameId) {
