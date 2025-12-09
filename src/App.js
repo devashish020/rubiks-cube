@@ -929,9 +929,17 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
                 onPointerLeave={() => stopSound(idx)}
               >
                 {isGradientCube ? (
-                  <MeshTransmissionMaterial
-                    {...glassConfig}
-                    background={new THREE.Color("#ffffff")}
+                  <meshPhysicalMaterial
+                    transmission={0.9}
+                    thickness={0.5}
+                    roughness={0.2}
+                    metalness={0.1}
+                    clearcoat={1}
+                    clearcoatRoughness={0.1}
+                    ior={1.5}
+                    transparent
+                    opacity={0.95}
+                    envMapIntensity={1.5}
                   >
                     <GradientTexture
                       stops={[0, 1]}
@@ -941,11 +949,20 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
                       ]}
                       size={1024}
                     />
-                  </MeshTransmissionMaterial>
+                  </meshPhysicalMaterial>
                 ) : (
-                  <MeshTransmissionMaterial
-                    {...glassConfig}
-                    background={new THREE.Color("#ffffff")}
+                  <meshPhysicalMaterial
+                    transmission={0.9}
+                    thickness={0.5}
+                    roughness={0.2}
+                    metalness={0.1}
+                    clearcoat={1}
+                    clearcoatRoughness={0.1}
+                    ior={1.5}
+                    transparent
+                    opacity={0.95}
+                    color="#ffffff"
+                    envMapIntensity={1.5}
                   />
                 )}
               </RoundedBox>
