@@ -21,11 +21,12 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const [isReassembling, setIsReassembling] = useState(false);
   const [explosionProgress, setExplosionProgress] = useState(0);
   const [hoveredCube, setHoveredCube] = useState(null);
+  const [isInteracting, setIsInteracting] = useState(false);
 
   const sphereScale = useRef(0);
   const hoverPoint = useRef(new THREE.Vector3(0, 0, 0));
   const mouseWorldPos = useRef(new THREE.Vector3(0, 0, 0));
-  const { camera, gl } = useThree();
+  const { camera, gl, invalidate } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
   
@@ -979,33 +980,18 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
 export default function App() {
   const [hoveredCube, setHoveredCube] = useState(null);
   const [isExploding, setIsExploding] = useState(false);
-  const [frameloop, setFrameloop] = useState("always");
-
-  // Detect when user is hovering over the canvas
-  useEffect(() => {
-    const handleMouseEnter = () => setFrameloop("always");
-    const handleMouseLeave = () => setFrameloop("demand");
-
-    const canvas = document.querySelector("canvas");
-    if (canvas) {
-      canvas.addEventListener("mouseenter", handleMouseEnter);
-      canvas.addEventListener("mouseleave", handleMouseLeave);
-    }
-
-    return () => {
-      if (canvas) {
-        canvas.removeEventListener("mouseenter", handleMouseEnter);
-        canvas.removeEventListener("mouseleave", handleMouseLeave);
-      }
-    };
-  }, []);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "transparent" }}>
+    <div style={{ 
+      width: "100vw", 
+      height: "100vh", 
+      background: "transparent",
+      pointerEvents: "none",
+      willChange: "transform"
+    }}>
       <Canvas 
         shadows
         camera={{ position: [8, 8, 8], fov: 50 }}
-        frameloop={frameloop}
         gl={{ 
           alpha: true, 
           premultipliedAlpha: false,
@@ -1014,9 +1000,14 @@ export default function App() {
           stencil: false,
           depth: true
         }}
-        dpr={[1, 1.5]} // Limit pixel ratio for performance
+        dpr={[1, 1]} // Lower DPR for better performance during scroll
         performance={{ min: 0.5 }} // Allow framerate to drop if needed
-        style={{ background: "transparent" }}
+        frameloop="demand" // Only render when needed
+        style={{ 
+          background: "transparent",
+          pointerEvents: "auto",
+          willChange: "transform"
+        }}
       >
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} onExplosionChange={setIsExploding} />
