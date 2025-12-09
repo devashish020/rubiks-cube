@@ -21,12 +21,11 @@ function RubiksCube({ onHoverChange, onExplosionChange }) {
   const [isReassembling, setIsReassembling] = useState(false);
   const [explosionProgress, setExplosionProgress] = useState(0);
   const [hoveredCube, setHoveredCube] = useState(null);
-  const [isInteracting, setIsInteracting] = useState(false);
 
   const sphereScale = useRef(0);
   const hoverPoint = useRef(new THREE.Vector3(0, 0, 0));
   const mouseWorldPos = useRef(new THREE.Vector3(0, 0, 0));
-  const { camera, gl, invalidate } = useThree();
+  const { camera, gl } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-999, -999));
   
@@ -982,13 +981,7 @@ export default function App() {
   const [isExploding, setIsExploding] = useState(false);
 
   return (
-    <div style={{ 
-      width: "100vw", 
-      height: "100vh", 
-      background: "transparent",
-      pointerEvents: "none",
-      willChange: "transform"
-    }}>
+    <div style={{ width: "100vw", height: "100vh", background: "transparent", pointerEvents: "none" }}>
       <Canvas 
         shadows
         camera={{ position: [8, 8, 8], fov: 50 }}
@@ -1000,14 +993,9 @@ export default function App() {
           stencil: false,
           depth: true
         }}
-        dpr={[1, 1]} // Lower DPR for better performance during scroll
+        dpr={[1, 1.5]} // Limit pixel ratio for performance
         performance={{ min: 0.5 }} // Allow framerate to drop if needed
-        frameloop="demand" // Only render when needed
-        style={{ 
-          background: "transparent",
-          pointerEvents: "auto",
-          willChange: "transform"
-        }}
+        style={{ background: "transparent", pointerEvents: "auto" }}
       >
         <ambientLight intensity={Math.PI} />
         <RubiksCube onHoverChange={setHoveredCube} onExplosionChange={setIsExploding} />
